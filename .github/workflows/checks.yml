@@ -15,32 +15,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          path: mnesis-bombay
-      # Temporary sibling checkouts. Replace these with registry/git-pinned
-      # dependencies before declaring the build hermetic or publishing crates.
-      - uses: actions/checkout@v4
-        with:
-          repository: devrandom-labs/actorpass
-          path: actorpass
-      - uses: actions/checkout@v4
-        with:
-          repository: devrandom-labs/behaviorpass
-          path: behaviorpass
-      - uses: actions/checkout@v4
-        with:
-          repository: devrandom-labs/nexus
-          path: nexus
-      - uses: moonrepo/setup-rust@v0
-        with:
-          cache-target: mnesis-bombay/target
-      - name: Validate
-        working-directory: mnesis-bombay
-        run: |
-          cargo fmt --all -- --check
-          cargo test --workspace
-          cargo clippy --workspace --all-targets --all-features -- -D warnings
       - uses: DeterminateSystems/nix-installer-action@v19
+      # Full Cargo checks require the currently unpublished Actorpass sibling.
+      # Keep this required check honest and hermetic until Actorpass is
+      # available through an immutable remote source; local pre-commit checks
+      # still run the complete workspace against sibling checkouts.
       - name: Evaluate Nix flake
-        working-directory: mnesis-bombay
         run: nix flake check --no-build
