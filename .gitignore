@@ -1,0 +1,16 @@
+.direnv/
+result*
+target
+.biscuit/
+**/.env
+**/target
+.env
+.envrc.local
+.worktrees/
+mutants.out/
+mutants.out.old/
+
+# Local design/plan working docs — kept on disk for review + subagent execution,
+# never committed (design intent that matters lands in AGENTS.md / the PR body).
+docs/plans/
+docs/prompts/

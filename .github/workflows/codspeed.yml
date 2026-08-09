@@ -1,0 +1,21 @@
+name: Architecture benchmark
+
+on:
+  workflow_dispatch:
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { path: mnesis-bombay }
+      - uses: actions/checkout@v4
+        with: { repository: devrandom-labs/actorpass, path: actorpass }
+      - uses: actions/checkout@v4
+        with: { repository: devrandom-labs/behaviorpass, path: behaviorpass }
+      - uses: actions/checkout@v4
+        with: { repository: devrandom-labs/nexus, path: nexus }
+      - uses: moonrepo/setup-rust@v0
+      - name: Run comparative harness
+        working-directory: mnesis-bombay
+        run: cargo bench --bench architecture_comparison

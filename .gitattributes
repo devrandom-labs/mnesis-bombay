@@ -1,0 +1,3 @@
+# Research corpus files are immutable upstream snapshots; do not whitespace-check or diff them.
+research/**/sources/*.html binary
+research/**/sources/*.pdf binary

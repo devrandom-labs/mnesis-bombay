@@ -1,0 +1,12 @@
+[package]
+name = "mnesis-bombay-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Runtime-neutral application protocol for Mnesis integrations"
+
+[lints]
+workspace = true

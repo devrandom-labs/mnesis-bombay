@@ -1,0 +1,19 @@
+[package]
+name = "mnesis-actorpass"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Typed Actorpass adapter for Mnesis command execution and committed events"
+
+[dependencies]
+actorpass.workspace = true
+behavior.workspace = true
+mnesis-bombay-core = { path = "../core" }
+mnesis.workspace = true
+mnesis-store.workspace = true
+
+[lints]
+workspace = true

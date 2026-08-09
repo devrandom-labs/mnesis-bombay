@@ -1,0 +1,16 @@
+[package]
+name = "mnesis-bombay-tower"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Optional Tower interoperability for Mnesis Bombay application services"
+
+[dependencies]
+mnesis-bombay-core = { path = "../core" }
+tower-service.workspace = true
+
+[lints]
+workspace = true
