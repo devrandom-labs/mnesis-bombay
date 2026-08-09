@@ -32,6 +32,9 @@ post-append actor send.
 
 Read [ADR 0001](docs/adr/0001-runtime-neutral-command-execution.md) before
 changing dependency direction or introducing a handler/mediator abstraction.
+The [production-readiness audit](docs/production-readiness-research.md) assigns
+aggregate resolution, activation, supervision, backpressure, deduplication,
+event relay, operations, security, testing, and upstream changes explicitly.
 
 ## Status
 

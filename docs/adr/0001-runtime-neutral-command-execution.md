@@ -1,6 +1,7 @@
 # ADR 0001: Runtime-neutral Mnesis execution with an Actorpass service route
 
-- Status: Proposed; executable validation in progress
+- Status: Accepted boundary; production implementation gated by the capability
+  audit
 - Date: 2026-08-09
 - Decision owners: Mnesis and Actorpass maintainers
 - Scope: command execution, runtime integration, replies, event propagation,
@@ -32,6 +33,11 @@ The leading architecture is:
 
 This decision is provisional until the failure, readiness, allocation,
 durable-store, and high-cardinality performance gates below pass.
+
+The complete production capability inventory, repository ownership decisions,
+upstream requirements, activation state machine and release gates are normative
+in [`../production-readiness-research.md`](../production-readiness-research.md).
+This ADR alone must not be interpreted as a production-ready implementation.
 
 ## Naming
 
