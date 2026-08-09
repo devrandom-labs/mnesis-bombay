@@ -15,32 +15,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Install Nix
+        uses: nixbuild/nix-quick-install-action@v30
         with:
-          path: mnesis-bombay
-      # Temporary sibling checkouts. Replace these with registry/git-pinned
-      # dependencies before declaring the build hermetic or publishing crates.
-      - uses: actions/checkout@v4
-        with:
-          repository: devrandom-labs/actorpass
-          path: actorpass
-      - uses: actions/checkout@v4
-        with:
-          repository: devrandom-labs/behaviorpass
-          path: behaviorpass
-      - uses: actions/checkout@v4
-        with:
-          repository: devrandom-labs/nexus
-          path: nexus
-      - uses: moonrepo/setup-rust@v0
-        with:
-          cache-target: mnesis-bombay/target
-      - name: Validate
-        working-directory: mnesis-bombay
-        run: |
-          cargo fmt --all -- --check
-          cargo test --workspace
-          cargo clippy --workspace --all-targets --all-features -- -D warnings
-      - uses: DeterminateSystems/nix-installer-action@v19
-      - name: Evaluate Nix flake
-        working-directory: mnesis-bombay
-        run: nix flake check --no-build
+          nix_conf: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
+      # Full output evaluation currently requires both the unpublished
+      # Actorpass sibling and a remotely reproducible Rust 1.96 Fenix
+      # derivation. Validate the locked flake inputs here without overstating
+      # coverage; local pre-commit checks run the complete sibling workspace.
+      - name: Validate locked Nix inputs
+        run: nix flake metadata --no-update-lock-file
