@@ -17,42 +17,63 @@ Repository: `mnesis-bombay`
   doubles before implementing the runtime.
 - Turn every failure-table row into a named contract test.
 
-Exit: direct, Tower and Actorpass hosts can be tested against the same executor
-contract and outcome vocabulary without a persistent store.
+Exit: direct and Actorpass hosts share the same factual request/outcome
+vocabulary without forcing one runtime executor abstraction into core.
 
-## Phase 1 — Runtime-neutral executor
+## Phase 1 — Mnesis command execution
 
 Repositories: `mnesis-bombay`; no Actorpass changes
 
-- Implement `AggregateExecutor<A, C, R>` over Mnesis repository capabilities.
+- Implement the Mnesis-owned load, decide, append, conflict, and ambiguity
+  semantics over repository capabilities, callable directly and reusable by an
+  Actorpass-hosted aggregate activation.
 - Preserve typed domain, conflict, storage and ambiguous errors.
 - Implement explicit conflict reload/re-decision with replay eligibility and a
   bounded budget.
 - Add direct-host integration tests against in-memory, Fjall and Postgres.
 - Add decorators for authorization facts, tracing/metadata and metrics without
-  introducing a mediator registry.
+  introducing a mediator registry or a parallel general-purpose service stack.
 
 Exit: durable command semantics work without Actorpass and produce a committed
 position that can be used for read-your-writes.
 
-## Phase 2 — Local Actorpass host
+## Phase 2 — Bombay runtime prerequisites
 
-Repository: `mnesis-bombay`; use current Actorpass/Behaviorpass APIs
+Repositories: owning Bombay runtime and focused sibling crates first
 
-- Add typed `AggregateRuntime` builder and `AggregateHandle<A>`.
-- Spawn a supervised fixed shard pool under the root guardian.
-- Implement the bounded per-key scheduler and activation state machine.
-- Add cache bounds, idle eviction, poison invalidation and telemetry.
-- Add typed Actorpass reply envelopes, overload behavior and phase-aware
-  deadlines locally.
-- Compose restart budgets, lifecycle observation, receive timeout/timers and
-  coordinated shutdown from existing sibling primitives.
+- Complete the locationpass entity directory in devrandom-labs/bombay#268:
+  typed location-transparent lookup, race-free on-demand activation, bounded
+  active entities, safe passivation, and concurrency across unrelated IDs.
+- Complete or split the existing upstream reply, admission, drain, reporting,
+  and lifecycle cards so each generic invariant has an explicit owner and
+  executable conformance suite.
+- Keep hydration opaque to the runtime: an application factory may load from
+  Mnesis, a KV store, or memory without locationpass importing any of them.
+- Prove local activation/passivation races, capacity bounds, shutdown, retained
+  memory, and high-cardinality behavior before calling the prerequisites ready.
+
+Exit: the Bombay actor-runtime family provides production-quality reusable
+entity hosting without any Mnesis vocabulary.
+
+## Phase 3 — Mnesis Actorpass host
+
+Repository: `mnesis-bombay`; depends on the Phase 2 upstream cards
+
+- Supply the typed Mnesis hydration factory and activation-owned application
+  interpreter while keeping Behavior pure; do not implement a private entity
+  directory or keyed scheduler.
+- Map aggregate ID to entity key without confusing actor incarnation, stream
+  identity, tenant, or command identity.
+- Retire/poison an activation after conflict, panic, cancellation, or ambiguous
+  completion according to the factual command-phase model.
+- Map upstream admission, deadline, reply, passivation, and drain facts into
+  the runtime-neutral command outcome vocabulary.
 
 Exit: local crashes restore availability, uncertain roots are never reused,
-all queues/caches have measured bounds, and saturation preserves per-key order
-and cross-key progress.
+all queues/activations have measured upstream bounds, and unrelated aggregate
+entities make concurrent progress.
 
-## Phase 3 — Durable command identity
+## Phase 4 — Durable command identity
 
 Repositories: Nexus first, then `mnesis-bombay`
 
@@ -68,7 +89,7 @@ Repositories: Nexus first, then `mnesis-bombay`
 Exit: retry with the same command ID cannot apply a command twice at the named
 inbox+event-stream transaction boundary.
 
-## Phase 4 — Committed-event relay
+## Phase 5 — Committed-event relay
 
 Repositories: `mnesis-bombay`; optional Nexus consumer-inbox capability
 
@@ -83,21 +104,6 @@ Repositories: `mnesis-bombay`; optional Nexus consumer-inbox capability
 
 Exit: crash tests prove no silent checkpoint skip and explicitly characterize
 duplicates for every receipt mode.
-
-## Phase 5 — Upstream distillation
-
-Repositories: Actorpass and possibly Behaviorpass, only from evidence
-
-- Reconcile the concrete host against Actorpass F3, L1, L3, L4, L5 and L6.
-- Extract only Mnesis-free invariants with another consumer or compelling
-  cross-runtime proof.
-- Keep aggregate cache, event-store outcomes, inbox and relay semantics in the
-  integration even if generic scheduling/admission primitives move upstream.
-- Add no Behaviorpass feature unless a new pure action has two interpreters and
-  cannot be expressed by its existing closed protocols.
-
-Exit: upstream APIs are smaller than the integration policy they support and
-have independent conformance tests.
 
 ## Phase 6 — Operations and release
 
@@ -116,12 +122,14 @@ Repositories: `mnesis-bombay`, reference application and deployment assets
 Exit: every gate in `production-readiness-research.md` links to reproducible
 evidence and an operator can diagnose/recover the reference deployment.
 
-## Phase 7 — Optional clustered execution
+## Phase 7 — Distributed entity hosting and fencing
 
-This is not an extension flag on the local scheduler. It requires a separate
-architecture decision covering membership, placement, ownership transfer,
-fencing, network partitions, rebalance, remote authentication, delivery
-acknowledgements and rolling protocol compatibility.
+Locationpass deliberately gives the adapter one location-transparent interface,
+but local activation ownership is not distributed single-writer proof. The
+remote arm requires explicit membership, placement, ownership transfer,
+fencing, network partitions, rebalance, authentication, delivery
+acknowledgements, and rolling protocol compatibility owned by the appropriate
+Bombay, Zenoh, KERI, and Mnesis capabilities.
 
 Optimistic stream conflicts alone are not a placement protocol. Until a
 cluster design passes split-brain and failover tests, run multiple stateless

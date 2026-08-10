@@ -1,8 +1,8 @@
-# ADR 0001: Runtime-neutral Mnesis execution with an Actorpass service route
+# ADR 0001: Runtime-neutral Mnesis execution with Actorpass entity hosting
 
 - Status: Accepted boundary; production implementation gated by the capability
   audit
-- Date: 2026-08-09
+- Date: 2026-08-09; amended 2026-08-10 for upstream entity ownership
 - Decision owners: Mnesis and Actorpass maintainers
 - Scope: command execution, runtime integration, replies, event propagation,
   modularity, testability, and performance
@@ -18,11 +18,12 @@ The leading architecture is:
 2. A small runtime-neutral core carries command identity and typed outcomes.
 3. Actorpass Behaviors remain pure. A command Behavior emits a typed
    `ExecuteRequest` in its `Sends` algebra.
-4. An Actorpass `DeliveryRouter` adapts that request to a runtime-neutral
-   command service. Actorpass awaits routing before reading the next mailbox
-   event, preserving per-actor sequential turns.
-5. Aggregate roots are cached in a bounded key-affine execution service, not
-   made authoritative actor state. The Mnesis stream remains authoritative.
+4. Actorpass and its focused Bombay sibling libraries own the reusable entity
+   runtime: typed request/reply, location-transparent lookup, bounded on-demand
+   activation, per-entity sequential turns, passivation, supervision,
+   admission, and draining.
+5. One disposable actor activation hosts each active aggregate instance. Its
+   root is a rebuildable cache; the Mnesis stream remains authoritative.
 6. Tower interoperability is optional. Tower is not part of the domain or core
    contract.
 7. Reliable event propagation reads the committed Mnesis log and uses explicit
@@ -100,7 +101,8 @@ testability, flexibility, and measured performance.
 - Domain crates import Mnesis kernel contracts only.
 - `mnesis-bombay-core` imports no runtime, transport, executor, or concrete
   storage adapter.
-- Durability execution imports no Actorpass type.
+- Mnesis durability primitives and the runtime-neutral protocol import no
+  Actorpass type. The Actorpass-hosted application adapter may compose both.
 - `mnesis-actorpass` is removable without changing domain commands or aggregate
   decisions.
 - Tower, HTTP, CLI, NATS, and Zenoh are outer adapters.
@@ -171,7 +173,7 @@ Owns:
 It does not own reply channels, actors, middleware frameworks, or storage
 connections.
 
-### 3. Durability execution
+### 3. Mnesis command execution
 
 Owns:
 
@@ -184,22 +186,26 @@ Owns:
 - cache invalidation after uncertainty;
 - returned committed position.
 
-The first implementation may be application-specific and generic. We will not
-introduce a new handler trait that merely duplicates `CommandRepository`.
+The direct implementation remains usable without Actorpass. The Actorpass host
+may place the same Mnesis operations inside an entity activation, but it must
+not duplicate generally useful activation, routing, passivation, admission, or
+draining machinery in this repository.
 
-### 4. Actorpass adapter
+### 4. Actorpass and Bombay runtime facilities
 
-Owns:
+Actorpass and focused Bombay sibling crates own:
 
-- mapping aggregate identity to actor address or shard;
-- mailbox admission and sequential turns;
-- conversion from actor command protocol to `ExecuteRequest`;
-- service readiness and backpressure integration;
-- typed reply capability;
-- lifecycle, shutdown, and cache eviction hooks;
+- location-transparent typed entity lookup by stable entity key;
+- bounded, race-free activation and passivation;
+- mailbox admission and sequential turns per entity;
+- concurrency across unrelated entities;
+- typed request/reply and timeout composition;
+- lifecycle, supervision, overload, draining, and shutdown mechanics;
 - tracing actor address/incarnation alongside domain identities.
 
-It does not own aggregate decision semantics or durable event authority.
+The `mnesis-actorpass` adapter supplies the opaque hydration factory and Mnesis
+command behavior. Actorpass does not own aggregate decisions, Mnesis conflict
+policy, durable outcomes, or event authority.
 
 ### 5. Optional Tower adapter
 
@@ -246,18 +252,19 @@ The default is after receipt. No mode is called globally exactly-once.
 caller
   │ CommandRequest(aggregate_id, command_id, command, reply)
   ▼
-Actorpass mailbox
-  │ sequential Behavior turn
+Actorpass/locationpass entity route
+  │ locate or activate aggregate entity by stable key
+  │ hydrate from Mnesis before readiness
   ▼
-pure Behavior
-  │ ExecuteRequest in typed Sends algebra
+aggregate activation mailbox
+  │ one sequential command turn for this entity
   ▼
-DeliveryRouter / application Service
-  │ await readiness
-  │ locate key-affine cache slot
-  │ load on cache miss
+pure command Behavior
+  │ validate and emit ExecuteRequest
+  ▼
+activation-owned application interpreter
   │ decide + append through CommandRepository
-  │ invalidate on uncertain failure
+  │ retire/poison activation on uncertain failure
   ▼
 typed CommandOutcome
   │ reply after durable fact
@@ -265,42 +272,39 @@ typed CommandOutcome
 caller
 ```
 
-Actorpass awaits `DeliveryRouter::deliver` while interpreting the turn's sends.
-It does not consume the next mailbox event until routing returns. This gives
-per-actor command serialization without placing repository I/O in Behavior.
+The entity activation does not consume the next command until the current
+durable turn reaches a factual outcome. Different entity activations progress
+concurrently. The Behavior remains pure; an application interpreter attached
+to the activation owns Mnesis I/O and keeps domain decision separately
+testable.
 
-## Cache and sharding
+## Activation and passivation
 
-A single global mutex is rejected because unrelated aggregates would
-head-of-line block. The initial probe uses 64 key-affine mutex shards.
+A fixed shard scheduler in this integration is rejected as the default because
+it duplicates a general actor-runtime capability and can head-of-line block
+unrelated entities. Actorpass/locationpass provides one logical activation per
+active entity ID, bounded by explicit capacity and idle passivation.
 
-Production cache requirements:
-
-- configurable shard count;
-- stable hash from aggregate ID, not actor incarnation;
-- one mutable root owner per key in a process;
-- bounded entries or explicit unbounded opt-in;
-- idle eviction;
-- reload after eviction, conflict, panic, or ambiguous cancellation;
-- metrics for hits, misses, entries, retained bytes, contention, and eviction;
-- no lock held across unrelated-key work;
-- no assumption that local affinity prevents another process writing.
+Production activation requirements belong upstream when they contain no
+Mnesis vocabulary: race-free get-or-activate, bounded active entities, safe
+passivation with in-flight exclusion, concurrency across unrelated entities,
+typed admission, draining, and lifecycle telemetry. This adapter supplies
+hydrate-on-activation and discards or retires an activation after conflict,
+panic, or ambiguous cancellation.
 
 Store optimistic concurrency remains the distributed correctness guard.
 
 ## Backpressure and readiness
 
-There are two bounded resources:
+There are two principal bounded resources:
 
 1. the Actorpass mailbox;
-2. the durability service/shard.
+2. active entity capacity and the Mnesis store.
 
-The adapter must not drain the mailbox into an unbounded internal queue. If the
-selected key/shard cannot accept work, service readiness remains pending and
-the current Actorpass turn remains in interpretation. This naturally stops that
-actor from consuming more commands. Cross-key fairness must be measured: global
-readiness over all shards can introduce head-of-line blocking, as documented by
-Tower `Steer`.
+The runtime must not drain a mailbox into an unbounded internal queue. Entity
+activation admission, per-entity mailbox admission, and store pressure remain
+distinct observable boundaries. Actorpass owns generic wait/reject/drain
+mechanics; the adapter maps them to the core factual outcome vocabulary.
 
 Timeout is not cancellation safety. If an append future is dropped when commit
 status is unknown, the cached root is invalidated and the caller receives an
@@ -359,19 +363,22 @@ mailbox admission, or supervision when those are product requirements.
 Insufficient. Visibility alone does not define load, persistence intent,
 append-before-send ordering, reply recovery, or checkpoint semantics.
 
-### Add a persistence effect to Behaviorpass/Actorpass
+### Persistence actor selected as the Actorpass host
 
-Architecturally clean and similar to persistent-actor systems. Deferred because
-it changes two foundational crates and their public algebra before the adapter
-has proven exact semantics. The typed service route provides an executable
-current-API experiment first.
+Selected for the Actorpass topology. One disposable activation per active
+aggregate gives per-entity sequential turns and concurrency across unrelated
+entities. Generic route/create/passivate mechanics belong in locationpass;
+Mnesis hydration, decision, append, and factual outcomes remain in an
+application interpreter attached to the activation, outside the pure Behavior.
+The mailbox and supervision do not improve the durable transaction or make an
+interrupted command retryable.
 
-### Persistence actor
+### Fixed keyed scheduler in the integration
 
-Moves I/O to another actor but requires a request/ack state machine and
-stashing while persistence is pending. It adds mailbox and lifecycle boundaries
-without improving the durable transaction. Rejected unless persistence itself
-needs independent actor lifecycle.
+Rejected as the default. It would duplicate reusable activation, routing,
+passivation, admission, and draining facilities that belong in the Bombay
+actor-runtime family. A measured worker-pool implementation may remain an
+upstream runtime topology option, but mnesis-bombay does not own its machinery.
 
 ### Generic MediatR-style dispatcher
 
@@ -392,7 +399,7 @@ Rejected as a target because Actorpass replaces it.
 
 ### Positive
 
-- Behavior purity is preserved.
+- Domain decision purity is preserved.
 - Mnesis and Actorpass remain independently usable.
 - Direct and Actorpass hosts share execution semantics.
 - Tower/HTTP interoperability can be added without infecting core crates.
@@ -402,9 +409,8 @@ Rejected as a target because Actorpass replaces it.
 
 ### Negative
 
-- Key-affine cache/shard machinery is non-trivial.
-- Typed service routing introduces another generic boundary and diagnostics to
-  maintain.
+- The integration depends on upstream entity activation and passivation
+  capabilities rather than carrying a private scheduler fallback.
 - Durable command inbox support may require store-specific transaction work.
 - Actor supervision cannot undo a committed append.
 - Application replies require an additional async hop.
@@ -412,8 +418,8 @@ Rejected as a target because Actorpass replaces it.
 
 ### Risks
 
-- A shared shard mutex can cause cross-key contention.
-- Service cloning can detach `poll_ready` from the instance receiving `call`.
+- Activation/passivation races can lose routing continuity unless the upstream
+  entity directory buffers or rejects commands with explicit facts.
 - Generic middleware might retry unsafe commands.
 - Cache eviction might race active execution if ownership is not explicit.
 - A transport might mislabel enqueue as durable acceptance.
