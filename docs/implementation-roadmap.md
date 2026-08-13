@@ -17,16 +17,16 @@ Repository: `mnesis-bombay`
   doubles before implementing the runtime.
 - Turn every failure-table row into a named contract test.
 
-Exit: direct and Actorpass hosts share the same factual request/outcome
+Exit: direct and Bombay hosts share the same factual request/outcome
 vocabulary without forcing one runtime executor abstraction into core.
 
 ## Phase 1 — Mnesis command execution
 
-Repositories: `mnesis-bombay`; no Actorpass changes
+Repositories: `mnesis-bombay`; no Bombay changes
 
 - Implement the Mnesis-owned load, decide, append, conflict, and ambiguity
   semantics over repository capabilities, callable directly and reusable by an
-  Actorpass-hosted aggregate activation.
+  Bombay-hosted aggregate activation.
 - Preserve typed domain, conflict, storage and ambiguous errors.
 - Implement explicit conflict reload/re-decision with replay eligibility and a
   bounded budget.
@@ -34,28 +34,42 @@ Repositories: `mnesis-bombay`; no Actorpass changes
 - Add decorators for authorization facts, tracing/metadata and metrics without
   introducing a mediator registry or a parallel general-purpose service stack.
 
-Exit: durable command semantics work without Actorpass and produce a committed
+Exit: durable command semantics work without Bombay and produce a committed
 position that can be used for read-your-writes.
 
-## Phase 2 — Bombay runtime prerequisites
+## Phase 2 — Verify and integrate Bombay runtime prerequisites
 
 Repositories: owning Bombay runtime and focused sibling crates first
 
-- Complete the locationpass entity directory in devrandom-labs/bombay#268:
-  typed location-transparent lookup, race-free on-demand activation, bounded
-  active entities, safe passivation, and concurrency across unrelated IDs.
-- Complete or split the existing upstream reply, admission, drain, reporting,
-  and lifecycle cards so each generic invariant has an explicit owner and
-  executable conformance suite.
+- Consume `bombay-entity` 0.1.0 for stable typed `EntityId`, race-free local
+  activation, bounded activation waiters, exact-incarnation routing,
+  passivation fences, typed refusal, and graceful/forced draining. Do not
+  rebuild these facilities in this repository.
+- Verify the exact locked Bombay, Behavior, Communication, Address, Observe,
+  Timers, Transition, Machine Executor, and Entity source, tests, and
+  documentation before changing the adapter. Bombay F3 and L3-L6 are
+  feature-complete inputs, not open implementation work for this repository.
+- Keep Bombay #268 and distributed directory work out of the local critical
+  path. They concern the future location-transparent remote arm; local entity
+  correctness is owned by `bombay-entity`.
+- Consume Bombay #307's transactional `System::activate` seam. It completes
+  initialization before registration and returns separately nameable cloneable
+  delivery and affine retirement capabilities, satisfying Entity's
+  activate-before-commit contract.
+- Keep total active-entity capacity assigned to
+  `devrandom-labs/bombay-entity#6` and generic lifecycle facts assigned to
+  `devrandom-labs/bombay-entity#7`; do not substitute adapter-local machinery.
 - Keep hydration opaque to the runtime: an application factory may load from
-  Mnesis, a KV store, or memory without locationpass importing any of them.
+  Mnesis, a KV store, or memory without `bombay-entity` importing any of them.
 - Prove local activation/passivation races, capacity bounds, shutdown, retained
   memory, and high-cardinality behavior before calling the prerequisites ready.
 
-Exit: the Bombay actor-runtime family provides production-quality reusable
-entity hosting without any Mnesis vocabulary.
+Exit: the adapter has executable conformance evidence against `bombay-rs`
+0.1.0, `bombay-behavior` 0.9.5, and `bombay-entity` 0.1.0, including activation,
+delivery, ordered fence acknowledgement, and exact retirement, without
+introducing Mnesis vocabulary upstream.
 
-## Phase 3 — Mnesis Actorpass host
+## Phase 3 — Mnesis Bombay host
 
 Repository: `mnesis-bombay`; depends on the Phase 2 upstream cards
 

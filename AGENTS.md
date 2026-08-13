@@ -1,6 +1,6 @@
 # Contributor and agent guide
 
-`mnesis-bombay` integrates Mnesis with Actorpass without making either system
+`mnesis-bombay` integrates Mnesis with Bombay without making either system
 the application's architectural centre. Read
 `docs/adr/0001-runtime-neutral-command-execution.md` before changing a public
 boundary.
@@ -80,8 +80,8 @@ specific forces; do not introduce a pattern merely because its name fits.
 ## Non-negotiable boundaries
 
 - `mnesis-bombay-core` is runtime-neutral and `no_std`; it must not depend on
-  Actorpass, Tokio, Tower, a concrete Mnesis store, transport, or serializer.
-- `mnesis-actorpass` is the only crate that may translate Actorpass delivery
+  Bombay, Tokio, Tower, a concrete Mnesis store, transport, or serializer.
+- `mnesis-bombay` is the only crate that may translate Bombay delivery
   into the core application port.
 - `mnesis-bombay-tower` is optional interoperability, not the core abstraction.
 - A Behavior validates and routes; the application service owns load, decide,
@@ -93,10 +93,9 @@ specific forces; do not introduce a pattern merely because its name fits.
 
 ## Local sibling layout
 
-The current development manifest expects sibling checkouts named `actorpass`,
-`behaviorpass`, and `nexus`; see `docs/local-sibling-development.md`. Actorpass
-must be published or pinned as an accessible Git dependency before releases and
-hermetic CI can be enabled.
+The committed manifest is standalone and uses released Bombay, Bombay
+Behavior, Bombay Entity, and Mnesis crates. Optional local overrides are
+documented in `docs/local-sibling-development.md` and must never be committed.
 
 ## Required checks
 

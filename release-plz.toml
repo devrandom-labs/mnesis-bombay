@@ -1,8 +1,16 @@
 [workspace]
-git_release_enable = true
-git_tag_enable = true
+release = false
+release_always = false
+publish_timeout = "10m"
 
 [[package]]
-name = "mnesis-bombay-workspace"
-publish = false
-release = false
+name = "mnesis-bombay-core"
+release = true
+
+[[package]]
+name = "mnesis-bombay"
+release = true
+
+[[package]]
+name = "mnesis-bombay-tower"
+release = true

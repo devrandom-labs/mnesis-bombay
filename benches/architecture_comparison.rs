@@ -1,24 +1,25 @@
-//! Positive cross-crate probe: current public APIs permit a Behavior to own a
-//! repository, retain aggregate identity, and await durable command execution.
-//! This is a mechanical-possibility probe, not an architecture endorsement.
+//! Comparative probe for direct Mnesis execution and pure Behavior routing to
+//! typed application services. Behavior 0.9 folds are synchronous and pure;
+//! repository-owning Behavior results captured by the original experiment are
+//! historical and are no longer compiled as a current architecture.
 
 use std::collections::{HashMap, hash_map::Entry};
 use std::convert::Infallible;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use actorpass::{
+use behavior::{Actions, Behavior, Delivery, Exit, MailAddr, Never, NoBirths, Recipient, User};
+use bombay::{
     ActorRef, DeliveryRouter, EndpointRegistry, IncarnationEndpoint, MailboxConfig, RunExit,
     System, TaskOutcome,
 };
-use behavior::{Actions, Behavior, Delivery, Exit, MailAddr, Never, NoBirths, Recipient, User};
 use bytes::Bytes;
 use mnesis::{
     Aggregate, AggregateRoot, AggregateState, DomainEvent, Events, Handle, Message, events,
 };
 use mnesis_inmemory::InMemoryStore;
 use mnesis_store::{
-    CommandRepository, Decode, Encode, EventStore, Execution, PersistedEnvelope, Repository, Store,
+    CommandRepository, Decode, Encode, EventStore, PersistedEnvelope, Repository, Store,
 };
 use tokio::sync::{Mutex, oneshot};
 use tower::{Service, ServiceExt, service_fn};
@@ -164,11 +165,11 @@ impl Behavior for PureCommandBehavior {
     type Error = DurableBehaviorError;
     type Birth = NoBirths;
 
-    async fn init(&mut self) -> behavior::BehaviorActed<Self> {
+    fn init(&mut self) -> behavior::BehaviorActed<Self> {
         Ok(Actions::cont())
     }
 
-    async fn step(&mut self, event: Self::Event) -> behavior::BehaviorActed<Self> {
+    fn transition(&mut self, event: Self::Event) -> behavior::BehaviorActed<Self> {
         match event.message {
             ActorCommand::Add { command, committed } => {
                 let mut actions: Actions<Self::Addr, Self::Ph, Self::Sends, Self::Birth> =
@@ -184,65 +185,7 @@ impl Behavior for PureCommandBehavior {
     }
 }
 
-/// This value owns both identity and repository access. Its error is deliberately
-/// not `Infallible`, while its phase type remains `Never`.
-struct DurableBehavior {
-    id: CounterId,
-    root: Option<AggregateRoot<Counter>>,
-    repository: Arc<CounterRepository>,
-}
-
-impl Behavior for DurableBehavior {
-    type Addr = MailAddr;
-    type Msg = ActorCommand;
-    type Event = User<MailAddr, ActorCommand>;
-    type Sends = Vec<Delivery<MailAddr, ActorCommand>>;
-    type Ph = Never;
-    type Error = DurableBehaviorError;
-    type Birth = NoBirths;
-
-    async fn init(&mut self) -> behavior::BehaviorActed<Self> {
-        // `&mut self` permits an immutable reborrow and Arc clone. The returned
-        // repository future is awaited directly by the Behavior future.
-        let repository = Arc::clone(&self.repository);
-        self.root = repository.load(self.id.clone()).await.ok();
-        Ok(Actions::cont())
-    }
-
-    async fn step(&mut self, event: Self::Event) -> behavior::BehaviorActed<Self> {
-        let ActorCommand::Add { command, committed } = event.message else {
-            return Ok(Actions::stop(Exit::Normal));
-        };
-        let repository = Arc::clone(&self.repository);
-        let root = self.root.as_mut().ok_or(DurableBehaviorError)?;
-        match repository.execute(root, command).await {
-            Ok(Execution::Executed { .. } | Execution::Ignored) => {
-                if let Some(committed) = committed {
-                    let _ = committed.send(());
-                }
-                Ok(Actions::cont())
-            }
-            Err(_) => Err(DurableBehaviorError),
-        }
-    }
-}
-
 fn assert_send_static<T: Send + 'static>(_: &T) {}
-
-#[derive(Clone, Copy)]
-struct ProbeRouter;
-
-impl DeliveryRouter<MailAddr, ActorCommand> for ProbeRouter {
-    type Error = Infallible;
-
-    async fn deliver(
-        &self,
-        _from: MailAddr,
-        _delivery: Delivery<MailAddr, ActorCommand>,
-    ) -> Result<(), Self::Error> {
-        Ok(())
-    }
-}
 
 #[derive(Clone)]
 struct ServiceRouter {
@@ -383,22 +326,6 @@ impl<S, Sender>
     }
 }
 
-impl<S>
-    EndpointRegistry<MailAddr, ActorCommand, IncarnationEndpoint<MailAddr, ActorRef<MailAddr, S>>>
-    for ProbeRouter
-{
-    type Error = Infallible;
-    type Registration = ();
-
-    fn register(
-        &self,
-        _address: MailAddr,
-        _endpoint: IncarnationEndpoint<MailAddr, ActorRef<MailAddr, S>>,
-    ) -> Result<Self::Registration, Self::Error> {
-        Ok(())
-    }
-}
-
 async fn run_direct(iterations: u64) -> Duration {
     let repository = repository();
     let mut root = repository
@@ -414,90 +341,6 @@ async fn run_direct(iterations: u64) -> Duration {
     }
     let elapsed = started.elapsed();
     assert_eq!(root.state().total, iterations);
-    elapsed
-}
-
-async fn run_actor(iterations: u64) -> Duration {
-    let repository = repository();
-    let behavior = DurableBehavior {
-        id: CounterId::new(1),
-        root: None,
-        repository: Arc::clone(&repository),
-    };
-    let system = System::new(MailboxConfig::bounded(1024), ProbeRouter);
-    let handle = system.spawn(MailAddr(1), behavior).expect("vacant address");
-    let started = Instant::now();
-    for _ in 0..iterations {
-        handle
-            .actor_ref()
-            .send(
-                MailAddr(2),
-                ActorCommand::Add {
-                    command: Add(1),
-                    committed: None,
-                },
-            )
-            .await
-            .expect("mailbox accepts command");
-    }
-    handle
-        .actor_ref()
-        .send(MailAddr(2), ActorCommand::Stop)
-        .await
-        .expect("mailbox accepts stop");
-    assert!(matches!(
-        handle.outcome().await,
-        TaskOutcome::Returned(Ok(RunExit::Stopped(Exit::Normal)))
-    ));
-    let elapsed = started.elapsed();
-    let reloaded = repository
-        .load(CounterId::new(1))
-        .await
-        .expect("committed aggregate reloads");
-    assert_eq!(reloaded.state().total, iterations);
-    elapsed
-}
-
-async fn run_actor_roundtrip(iterations: u64) -> Duration {
-    let repository = repository();
-    let behavior = DurableBehavior {
-        id: CounterId::new(1),
-        root: None,
-        repository: Arc::clone(&repository),
-    };
-    let system = System::new(MailboxConfig::bounded(1024), ProbeRouter);
-    let handle = system.spawn(MailAddr(1), behavior).expect("vacant address");
-    let started = Instant::now();
-    for _ in 0..iterations {
-        let (committed, receipt) = oneshot::channel();
-        handle
-            .actor_ref()
-            .send(
-                MailAddr(2),
-                ActorCommand::Add {
-                    command: Add(1),
-                    committed: Some(committed),
-                },
-            )
-            .await
-            .expect("mailbox accepts command");
-        receipt.await.expect("durable command receipt arrives");
-    }
-    handle
-        .actor_ref()
-        .send(MailAddr(2), ActorCommand::Stop)
-        .await
-        .expect("mailbox accepts stop");
-    assert!(matches!(
-        handle.outcome().await,
-        TaskOutcome::Returned(Ok(RunExit::Stopped(Exit::Normal)))
-    ));
-    let elapsed = started.elapsed();
-    let reloaded = repository
-        .load(CounterId::new(1))
-        .await
-        .expect("committed aggregate reloads");
-    assert_eq!(reloaded.state().total, iterations);
     elapsed
 }
 
@@ -657,23 +500,17 @@ async fn main() {
         .and_then(|value| value.parse::<u64>().ok())
     {
         let direct = run_direct(iterations).await;
-        let actor_pipeline = run_actor(iterations).await;
-        let actor_roundtrip = run_actor_roundtrip(iterations).await;
         let service_pipeline = run_service_router(iterations, false).await;
         let service_roundtrip = run_service_router(iterations, true).await;
         let tower_pipeline = run_tower_router(iterations, false).await;
         let tower_roundtrip = run_tower_router(iterations, true).await;
         println!(
-            "iterations={iterations} direct_ns_per_op={} actor_pipeline_ns_per_op={} actor_roundtrip_ns_per_op={} service_pipeline_ns_per_op={} service_roundtrip_ns_per_op={} tower_pipeline_ns_per_op={} tower_roundtrip_ns_per_op={} actor_pipeline_ratio={:.3} actor_roundtrip_ratio={:.3} service_pipeline_ratio={:.3} service_roundtrip_ratio={:.3} tower_pipeline_ratio={:.3} tower_roundtrip_ratio={:.3}",
+            "iterations={iterations} direct_ns_per_op={} service_pipeline_ns_per_op={} service_roundtrip_ns_per_op={} tower_pipeline_ns_per_op={} tower_roundtrip_ns_per_op={} service_pipeline_ratio={:.3} service_roundtrip_ratio={:.3} tower_pipeline_ratio={:.3} tower_roundtrip_ratio={:.3}",
             direct.as_nanos() / u128::from(iterations),
-            actor_pipeline.as_nanos() / u128::from(iterations),
-            actor_roundtrip.as_nanos() / u128::from(iterations),
             service_pipeline.as_nanos() / u128::from(iterations),
             service_roundtrip.as_nanos() / u128::from(iterations),
             tower_pipeline.as_nanos() / u128::from(iterations),
             tower_roundtrip.as_nanos() / u128::from(iterations),
-            actor_pipeline.as_secs_f64() / direct.as_secs_f64(),
-            actor_roundtrip.as_secs_f64() / direct.as_secs_f64(),
             service_pipeline.as_secs_f64() / direct.as_secs_f64(),
             service_roundtrip.as_secs_f64() / direct.as_secs_f64(),
             tower_pipeline.as_secs_f64() / direct.as_secs_f64(),
@@ -701,41 +538,8 @@ async fn main() {
         return;
     }
 
-    let repository = repository();
-    let behavior = DurableBehavior {
-        id: CounterId::new(1),
-        root: None,
-        repository: Arc::clone(&repository),
-    };
+    let behavior = PureCommandBehavior;
     assert_send_static(&behavior);
-
-    let system = System::new(MailboxConfig::bounded(4), ProbeRouter);
-    let handle = system.spawn(MailAddr(1), behavior).expect("vacant address");
-    handle
-        .actor_ref()
-        .send(
-            MailAddr(2),
-            ActorCommand::Add {
-                command: Add(7),
-                committed: None,
-            },
-        )
-        .await
-        .expect("mailbox accepts command");
-    handle
-        .actor_ref()
-        .send(MailAddr(2), ActorCommand::Stop)
-        .await
-        .expect("mailbox accepts stop");
-
-    assert!(matches!(
-        handle.outcome().await,
-        TaskOutcome::Returned(Ok(RunExit::Stopped(Exit::Normal)))
-    ));
-
-    let reloaded = repository
-        .load(CounterId::new(1))
-        .await
-        .expect("committed aggregate reloads");
-    assert_eq!(reloaded.state().total, 7);
+    let elapsed = run_service_router(1, true).await;
+    assert!(!elapsed.is_zero());
 }

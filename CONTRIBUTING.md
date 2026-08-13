@@ -6,8 +6,7 @@ are reviewable independently of code.
 
 ## Development setup
 
-This early workspace uses local sibling checkouts. Place `mnesis-bombay`,
-`actorpass`, `behaviorpass`, and `nexus` under the same parent directory, then:
+The committed graph uses released Bombay and Mnesis crates:
 
 ```bash
 direnv allow # or: nix develop
@@ -22,7 +21,7 @@ See `docs/local-sibling-development.md` for dependency and release constraints.
 
 - Keep the runtime-neutral core free of runtime, executor, transport, and
   concrete storage dependencies.
-- Put Actorpass translation in `mnesis-actorpass` and Tower interoperability in
+- Put Bombay translation in `mnesis-bombay` and Tower interoperability in
   `mnesis-bombay-tower`.
 - Test pure domain decisions, application execution, adapter contracts, and
   end-to-end runtime behavior separately.
@@ -35,8 +34,8 @@ See `docs/local-sibling-development.md` for dependency and release constraints.
 
 ## Release
 
-Publishing is intentionally blocked until Actorpass is available from an
-accessible immutable Git revision or crates.io. Do not publish manifests with
-local path dependencies.
+Bombay is available from crates.io. Published packages must retain registry
+dependencies; local Mnesis path patches belong only in the workspace root and
+must not leak into package manifests.
 
 Contributions are licensed under MIT OR Apache-2.0, at your choice.

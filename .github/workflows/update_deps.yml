@@ -64,7 +64,4 @@ jobs:
           labels: |
             dependencies
             automated pull request
-          committer_name: "Devrandom Bot"
-          committer_email: "bot@devrandom.co"
-          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
-          gpg_passphrase: ${{ secrets.GPG_PASSPHRASE }}
+          committer: "Devrandom Bot <bot@devrandom.co>"

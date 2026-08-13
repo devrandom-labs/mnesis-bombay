@@ -2,9 +2,9 @@
 
 Status: normative research and implementation backlog
 
-Date: 2026-08-09
+Date: 2026-08-09; dependency contracts reconciled 2026-08-13
 
-Scope: a correct, operable Mnesis command/event integration hosted by Actorpass
+Scope: a correct, operable Mnesis command/event integration hosted by Bombay
 
 This document closes the gap between an adapter seam and a production system.
 It inventories the whole system, assigns each invariant to one repository, and
@@ -22,8 +22,8 @@ runtime-neutral application executor
                   │ load → decide → append → durable outcome
           ┌───────┴────────┐
           │                │
- direct host       Actorpass host adapter
-                           │ locationpass entity route
+ direct host       Bombay host adapter
+                           │ Bombay Entity local route
                            │ bounded activation/passivation
                            ▼
                      Mnesis event store
@@ -41,7 +41,7 @@ stable `ExecutionKey<A>` to a shard. No actor lookup determines domain type,
 and no `Any`/`TypeId` registry searches for a handler.
 
 Local production operation is the first supported deployment. Clustered
-single-writer placement is a distinct later product: Actorpass currently has
+single-writer placement is a distinct later product: Bombay currently has
 no distributed directory, membership, fencing lease, rebalance protocol, or
 remote mailbox guarantee. A local adapter must never imply those guarantees.
 
@@ -51,10 +51,10 @@ remote mailbox guarantee. A local adapter must never imply those guarantees.
 |---|---|---|
 | application/domain | aggregate, command, event, rejection, business idempotency and authorization facts | actors, storage adapters, transport acknowledgements |
 | Nexus/Mnesis | event-stream correctness, append conflict, committed positions, subscriptions, atomic durable records | actor lifecycle, retry timing, HTTP/NATS policy |
-| Behaviorpass | pure event-to-actions algebra and closed typed protocols | I/O, repositories, queues, durability, restart implementation |
-| Actorpass/Bombay runtime family | actor incarnation, mailbox, typed request/reply, entity routing, bounded activation/passivation, effect order, lifecycle, supervision, admission and draining mechanics | aggregate semantics, durable acceptance, Mnesis conflict policy |
-| `mnesis-bombay-core` | runtime-neutral request/outcome vocabulary and command-phase facts | Tokio, Tower, Actorpass, concrete store |
-| `mnesis-actorpass` | Mnesis hydration factory and activation-owned application interpreter, outcome mapping, committed-log relay composition | generic entity directory, activation scheduler, passivation, runtime admission/drain mechanics |
+| Bombay Behavior | pure event-to-actions algebra and closed typed protocols | I/O, repositories, queues, durability, restart implementation |
+| Bombay runtime family | Behavior algebra; Communication mailbox; Address registration fencing; Observe exact-generation completion; Timers scheduling; Entity local activation/admission/draining/passivation; Bombay exact-incarnation execution and interpretation | aggregate semantics, durable acceptance, Mnesis conflict policy |
+| `mnesis-bombay-core` | runtime-neutral request/outcome vocabulary and command-phase facts | Tokio, Tower, Bombay, concrete store |
+| `mnesis-bombay` | Mnesis hydration factory and activation-owned application interpreter, outcome mapping, committed-log relay composition | generic entity directory, activation scheduler, passivation, runtime admission/drain mechanics |
 | optional Tower crate | `Service` interoperability and middleware mapping | semantic retry defaults or durable truth |
 | ingress/egress adapter | serialization, authentication evidence, protocol acknowledgements | changing internal failure meaning |
 
@@ -68,9 +68,9 @@ end-to-end policy is complete. **add** is required production work.
 | aggregate selection | command type maps statically to exactly one aggregate type | Mnesis `Handle<C>` and aggregate traits | **compose Mnesis:** typed endpoint; no registry or duplicate handler abstraction |
 | instance selection | request always carries validated `A::Id` | domain IDs and Mnesis stream mapping exist | **add core:** `CommandRequest<A::Id, C>` |
 | stable execution key | tenant/kind/id cannot be confused with actor incarnation | identity distinctions documented only | **add core:** newtypes and explicit mapping |
-| startup registration | host explicitly installs each supported aggregate family | Actorpass spawn and Bombay #268 factory seam | **add upstream + adapter:** locationpass registration plus typed Mnesis factory |
-| activation | first command lazily reconstructs a missing root | Mnesis `Repository::load`; Bombay #268 specifies get-or-activate | **upstream:** locationpass lifecycle; **adapter:** hydrate from Mnesis |
-| passivation | idle roots are evicted without losing truth | Bombay #268 specifies passivation | **upstream:** bounded safe passivation; **adapter:** disposable Mnesis activation |
+| startup registration | host explicitly installs each supported aggregate family | `bombay-entity` 0.1.0 `EntityDefinition`/`LocalEntityRuntime` seats | **adapter:** typed Mnesis definition and Bombay runtime binding |
+| activation | first command lazily reconstructs a missing root | Mnesis `Repository::load`; Entity single-flight activation and opaque preparation | **compose existing:** prepare from Mnesis, activate through Entity/Bombay |
+| passivation | idle roots are evicted without losing truth | Entity exact-incarnation drain fence and passivation | **compose existing:** disposable Mnesis activation; separately verify idle/global-capacity policy |
 | per-key ordering | one process never executes two commands for one key concurrently | actor turn serialization exists | **upstream:** one activation/turn stream per entity key |
 | cross-key concurrency | slow key does not block unrelated keys | independent actors provide the intended topology | **upstream:** bounded independent activations; benchmark shared-resource contention |
 | hot-key fairness | one key cannot monopolize shared runtime/store capacity | generic runtime concern | **upstream:** dispatcher/admission fairness and starvation telemetry |
@@ -78,24 +78,24 @@ end-to-end policy is complete. **add** is required production work.
 | conflict recovery | discard root, reload, re-decide, bounded retry | Mnesis exposes conflict predicate, policy consumer-owned | **add core/adapter:** explicit replay eligibility and retry budget |
 | command deduplication | same command ID cannot apply twice when outcome is uncertain | no command inbox in Nexus | **propose Nexus:** atomic command-inbox record plus event append capability |
 | lost reply | never translate unknown commit into safe retry | no durable inbox | **add core:** `AmbiguousCompletion`; inbox later resolves it |
-| cancellation | dropping a future after commit begins invalidates cached state | Tokio/Actorpass cancellation exists; no integration policy | **adapter:** commit-phase guard; **upstream:** retire activation mechanism |
-| panic recovery | panic retires incarnation and never reuses uncertain root | Actorpass classifies `TaskOutcome::Panicked` and supports restart | **compose:** restart/revive empty activation; fail/resolve outstanding receipts |
+| cancellation | dropping a future after commit begins invalidates cached state | Tokio/Bombay cancellation exists; no integration policy | **adapter:** commit-phase guard; **upstream:** retire activation mechanism |
+| panic recovery | panic retires incarnation and never reuses uncertain root | Bombay classifies `TaskOutcome::Panicked` and supports restart | **compose:** restart/revive empty activation; fail/resolve outstanding receipts |
 | restart budget | crash loops terminate or degrade predictably | Behaviorpass supervision budget/restart strategy exists | **use existing**, configure and observe it |
-| child ownership | supervisor retirement shuts down owned workers | Actorpass child leases/scopes and guardian mechanics exist | **use existing**, contract-test ordering |
-| mailbox pressure | user admission is bounded | Bombay Communication/Actorpass bounded user lane | **use existing**, never bypass with unbounded queue |
-| execution pressure | store and activation capacity propagate to callers | generic Actorpass roadmap work remains | **upstream:** bounded admission; **adapter:** map runtime facts and store limits |
-| overload policy | wait, reject, and deadline have distinct typed outcomes | Actorpass roadmap L3 remains pending | **implement upstream before adapter consumption** |
+| child ownership | supervisor retirement shuts down owned workers | Bombay child leases/scopes and guardian mechanics exist | **use existing**, contract-test ordering |
+| mailbox pressure | user admission is bounded | Bombay Communication/Bombay bounded user lane | **use existing**, never bypass with unbounded queue |
+| execution pressure | store and activation capacity propagate to callers | Entity bounds per-activation waiters and returns typed refusals; mailbox is bounded | **adapter:** map distinct Entity, mailbox, and store facts; do not infer a global entity bound |
+| overload policy | wait, reject, and deadline have distinct typed outcomes | Bombay L3 is feature-complete; Entity exposes typed refusal | **compose existing:** preserve boundary-specific facts and command ownership |
 | readiness | capacity reservation is consumed or released correctly | Tower has an optional interoperability contract | **upstream:** actor admission law; **Tower adapter:** faithful mapping |
 | deadlines | deadline covers queue and execution but does not lie about commit | timeout primitives exist, semantic phase absent | **add core:** absolute deadline and phase-aware outcome |
-| graceful shutdown | stop ingress → drain/reject → settle commits → checkpoint → stop children | Actorpass guardian/shutdown exists; job drain roadmap L4 pending | **upstream:** generic drain; **adapter:** Mnesis/relay phase ordering |
-| immediate command reply | reply only after durable fact | Actorpass F3 pending | **upstream:** typed reply/timeout; **adapter:** send only factual Mnesis outcome |
+| graceful shutdown | stop ingress → drain/reject → settle commits → checkpoint → stop children | Bombay L4 is feature-complete; Entity owns reservation/fence/retirement drain facts | **adapter:** compose Mnesis/relay phase ordering and map forced-drain ambiguity honestly |
+| immediate command reply | reply only after durable fact | Bombay F3 typed recipient/timeout composition is feature-complete | **adapter:** send only a factual Mnesis outcome through the existing typed recipient |
 | committed event source | reliable notifications originate after append | Mnesis `$all` subscription and positions | **use existing** |
 | relay checkpoint | resume strictly after last acknowledged policy boundary | positions exist; generic consumer runner intentionally absent | **add adapter relay host** |
 | checkpoint storage | checkpoint survives restart atomically with relay state | Mnesis `SnapshotStore<S, P>` can store state+position | **use existing** for relay state |
-| consumer receipt | enqueue, fold, effect, and inbox commit are different facts | Actorpass send acknowledges publication only | **add adapter protocol:** typed receipt level |
+| consumer receipt | enqueue, fold, effect, and inbox commit are different facts | Bombay send acknowledges publication only | **add adapter protocol:** typed receipt level |
 | consumer dedup | duplicate relay delivery cannot repeat protected effect | no general consumer inbox | **application storage or propose Nexus optional inbox capability** |
 | poison event | checkpoint never silently skips failed decode/handling | subscriptions surface errors | **add relay:** halt/quarantine/recorded-skip policy |
-| retry scheduling | bounded attempts, jitter and backoff; no mailbox-blocking sleep | Actorpass timers exist; roadmap L5 pending | **compose timers in adapter**, upstream after second consumer |
+| retry scheduling | bounded attempts, jitter and backoff; no mailbox-blocking sleep | Bombay L5 is feature-complete over keyed generation-safe Bombay Timers | **compose existing timers in adapter**; never reinterpret an uncertain commit as retryable |
 | projection lag | expose head, checkpoint and distance/age | positions exist but distance may be adapter-specific | **add telemetry adapter**, never assume dense sequence |
 | read-your-writes | caller can await projection reaching append position | Mnesis append returns last committed position | **add optional consistency waiter** with timeout/ambiguity |
 | snapshots | optimization failure never changes correctness | Mnesis snapshot decorator is best effort | **configure application**, expose hit/stale/failure metrics |
@@ -103,15 +103,15 @@ end-to-end policy is complete. **add** is required production work.
 | multi-aggregate work | no implied transaction across streams | Mnesis has `AtomicAppend` capability for supported stores | **application service:** require capability explicitly or use saga |
 | sagas/process managers | durable state and intents resume after crash | Mnesis saga/projected-intent primitives exist; runner consumer-owned | **add separate host**, not command executor magic |
 | external effects | no dual-write claim | committed-log relay available | **relay/outbox consumer** with named inbox/effect boundary |
-| local discovery | address resolves exact incarnation and retirement | Actorpass Address/Observe integration | **use existing** |
+| local discovery | address resolves exact incarnation and retirement | Bombay Address/Observe integration | **use existing** |
 | cluster placement | one active owner or safe concurrent writers | absent; optimistic concurrency only catches conflicting append | **new future distributed adapter/runtime**, not local v1 |
 | membership/rebalance | moves ownership without loss or split brain | absent | **future distributed project** |
 | fencing | stale owner cannot write after lease loss | absent from generic store contract | **future store/coordination capability** |
-| remote delivery | protocol defines authentication, dedup, order and ack | deliberately downstream of KERI/Zenoh in Actorpass roadmap | **separate integration repositories** |
+| remote delivery | protocol defines authentication, dedup, order and ack | deliberately downstream of KERI/Zenoh in Bombay roadmap | **separate integration repositories** |
 | authentication | ingress proves caller identity | outside all current core crates | **transport/application** |
 | authorization | decision uses authenticated principal/tenant facts | metadata can carry bytes but policy absent | **application decorator/domain**, typed context |
 | tenant isolation | routing, cache, stream and metrics include tenant safely | absent as universal policy | **application/core key type**, deployment quotas |
-| secrets/encryption | keys rotate; logs and snapshots protect sensitive data | signed-event example exists, encryption policy absent | **store/deployment adapter**, never Actorpass Behavior |
+| secrets/encryption | keys rotate; logs and snapshots protect sensitive data | signed-event example exists, encryption policy absent | **store/deployment adapter**, never Bombay Behavior |
 | audit trail | command/causation/correlation metadata reaches committed events | Mnesis metadata provider hooks exist | **application decorator**, schema and redaction policy |
 | observability | command ID, aggregate ID, actor address/incarnation and position correlate | tracing/lifecycle primitives exist separately | **add adapter spans/metrics**, bounded-cardinality labels |
 | health | distinguish live, ready, degraded, relay-lagged and store-unavailable | absent integration endpoint | **add host health model** |
@@ -152,7 +152,7 @@ enum CommandOutcome<P, O, R, S> {
 }
 ```
 
-Transport reply channels do not belong inside this core request. An Actorpass
+Transport reply channels do not belong inside this core request. An Bombay
 adapter envelope may add a typed reply capability around it.
 
 `CommandContext` must carry typed or validated command identity, causation,
@@ -213,25 +213,67 @@ service sends are sufficient inputs.
 Reconsider only if the adapter proves a generally useful *pure action* that
 has a second non-Mnesis interpreter. Persistence is not such an action yet.
 
-### Actorpass and focused Bombay runtime crates
+### Bombay and focused Bombay runtime crates
 
-Actorpass is intended to be a best-in-class actor runtime, not a frozen set of
-current primitives. Generic runtime facilities must be implemented and proven
-in their owning Bombay repository before mnesis-bombay builds private versions.
-Use existing bounded mailboxes, effect ordering, child scopes, guardian,
-keep-address restart, lifecycle reporting, timers and peer observation, then
-complete the pending reusable capabilities needed by this integration:
+Bombay is intended to be a best-in-class actor runtime, not a frozen set of
+current primitives. The 2026-08-13 audit found that the local prerequisites
+formerly listed here now have owners and executable implementations:
 
-- F3 typed reply/timeout composition;
-- devrandom-labs/bombay#268 location-transparent entity activation and
-  passivation, coordinated with L1 only where a worker-pool topology is useful;
-- L3 typed admission refusal;
-- L4 graceful in-flight draining;
-- L5 retry scheduling/backoff;
-- L6 queryable application reporting.
+- Behavior owns pure folds, semantic `SendProduct` routing, typed recipients,
+  deadline/shutdown wrappers, and replacement-resolution facts.
+- Communication 0.1.1 owns the sole two-lane mailbox, bounded user-lane
+  backpressure, per-lane FIFO, closure, and rejected-payload recovery.
+- Address 0.1.1 owns exact registration identities and generation fencing;
+  Observe 0.1.0 owns exact-generation terminal publication; Timers 0.1.0 owns
+  keyed, queue-branded generation-safe scheduling.
+- `bombay-entity` 0.1.0 owns stable local `EntityId`, single-flight activation,
+  bounded activation waiters, typed refusal, exact-incarnation routing,
+  processing fences, draining, retirement, and passivation.
+- Bombay F3 and L3-L6 are feature-complete and supply typed reply/timeout,
+  admission composition, graceful draining, retry scheduling, and reporting.
+
+Bombay #268 and worker-pool L1 no longer block the local host. They concern a
+future remote/location-transparent arm or an alternative topology and require
+their own consumers and guarantees. Global active-entity capacity is assigned
+to `devrandom-labs/bombay-entity#6`; generic lifecycle facts are assigned to
+`devrandom-labs/bombay-entity#7`. Entity's per-activation waiter bound must not
+be described as either one.
+
+#### Bombay–Entity conformance audit — 2026-08-14
+
+The exact public contracts expose five `bombay_entity::LocalEntityRuntime`
+operations. Their ownership mapping is:
+
+| Entity operation | Existing Bombay composition | Audit status |
+|---|---|---|
+| `spawn` | Tokio owns task execution; the Entity port requires every owned lifecycle task to be driven to completion | composable by the adapter, subject to its Tokio host contract |
+| `activate` | Bombay owns mailbox construction, Behavior initialization/effect interpretation, address registration, launch, and exact terminal publication | composable through `System::activate`, which initializes before registration and returns separate delivery and retirement capabilities |
+| `deliver` | clone the exact `ActorRef` endpoint and use `DeliveryEndpoint::deliver`, which preserves a rejected non-`Clone` command | composable |
+| `fence` | Entity owns `EntityBehavior`/`EntityProtocol::DrainFence`; Bombay delivers it and routes the typed `DrainFenceAcknowledged` reply | executable conformance probe enqueues the exact protocol and awaits its typed acknowledgement |
+| `retire` | retain the affine Bombay `RootRetirement` as the Entity lease; graceful retirement publishes typed shutdown and awaits `outcome`, while forced retirement calls `abort` and awaits `outcome` | executable conformance probe proves graceful and forced exact retirement release registration |
+
+The seven adversarial contract tests additionally prove initialization rollback,
+registration retry, live-incarnation survival under address collision,
+non-`Clone` command recovery after retirement, separation of fence enqueue and
+acknowledgement failures, FIFO command-before-fence ordering, and completion of
+directory-owned lifecycle tasks.
+
+The earlier activation mismatch was semantic, not merely a visibility
+inconvenience: ordinary `System::spawn` publishes registration before the
+Behavior initialization fold completes. Bombay #307 resolved it with the
+focused transactional `System::activate` operation. The adapter uses that
+operation when Entity requires initialize-before-commit, while ordinary actors
+continue to use `System::spawn`.
+
+Identity remains compartmentalized: Entity `EntityId` and `ActivationId` are
+stable-routing/lifecycle facts; the adapter derives a Bombay address for
+one activation; Address `RegistrationId` fences that exact registration;
+Behavior child nonce and timer generations remain unrelated; Mnesis aggregate,
+stream, command, tenant, and subscription-position identities remain
+application/durability facts.
 
 Do not implement Mnesis-specific substitutes first when the invariant remains
-useful after removing Mnesis vocabulary. Actorpass/Bombay must not absorb
+useful after removing Mnesis vocabulary. Bombay and its sibling crates must not absorb
 aggregate decisions, event-store outcomes, conflict policy, inbox semantics,
 or durable truth.
 
@@ -286,15 +328,17 @@ No “production ready” label until all applicable gates have evidence:
 16. dependency/feature audit proving the core remains runtime-neutral;
 17. semver, MSRV, license, advisory, fuzz, mutation and Miri gates appropriate
     to each unsafe/concurrent/parser boundary;
-18. a reference application and operator runbook exercising real Actorpass
+18. a reference application and operator runbook exercising real Bombay
     supervision and a real persistent Mnesis adapter.
 
 ## Research basis
 
-Local source, tests and ledgers were inspected at the sibling working-tree
-revisions on 2026-08-09. Especially important findings are Actorpass's pending
-F3/L1/L3/L4/L5/L6 roadmap rows and Mnesis's explicit consumer-owned runner and
-retry boundaries.
+Local source, public APIs, tests, documentation, and released package contents
+were re-inspected on 2026-08-14. The executable graph locks `bombay-rs` 0.1.0,
+`bombay-engine` 0.1.0, `bombay-behavior` 0.9.5, `bombay-entity` 0.1.0,
+Communication 0.1.1, Address 0.1.1, Observe 0.1.0, Timers 0.1.0, and the Mnesis
+packages compatible with 0.2 and locked to 0.2.2. The committed graph contains
+no sibling path or Git patches.
 
 External primary/official references used as comparative evidence:
 
@@ -316,5 +360,5 @@ External primary/official references used as comparative evidence:
   `../behaviorpass/research/architecture-critical-review-loop/AGHA-BIBLIOGRAPHY.md`.
 
 These systems provide evidence and counterexamples, not APIs to copy. Orleans
-placement guarantees in particular require infrastructure Actorpass does not
+placement guarantees in particular require infrastructure Bombay does not
 currently have.

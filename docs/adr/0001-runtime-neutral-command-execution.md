@@ -1,34 +1,37 @@
-# ADR 0001: Runtime-neutral Mnesis execution with Actorpass entity hosting
+# ADR 0001: Runtime-neutral Mnesis execution with Bombay entity hosting
 
 - Status: Accepted boundary; production implementation gated by the capability
   audit
-- Date: 2026-08-09; amended 2026-08-10 for upstream entity ownership
-- Decision owners: Mnesis and Actorpass maintainers
+- Date: 2026-08-09; amended 2026-08-14 for the released Entity runtime and
+  current Bombay contracts
+- Decision owners: Mnesis and Bombay maintainers
 - Scope: command execution, runtime integration, replies, event propagation,
   modularity, testability, and performance
 
 ## Decision summary
 
-`mnesis-bombay` is a separate integration repository. Mnesis and Actorpass do
+`mnesis-bombay` is a separate integration repository. Mnesis and Bombay do
 not depend on each other.
 
 The leading architecture is:
 
 1. Mnesis remains the domain and durability authority.
 2. A small runtime-neutral core carries command identity and typed outcomes.
-3. Actorpass Behaviors remain pure. A command Behavior emits a typed
+3. Bombay Behaviors remain pure. A command Behavior emits a typed
    `ExecuteRequest` in its `Sends` algebra.
-4. Actorpass and its focused Bombay sibling libraries own the reusable entity
-   runtime: typed request/reply, location-transparent lookup, bounded on-demand
-   activation, per-entity sequential turns, passivation, supervision,
-   admission, and draining.
+4. Bombay and its focused Bombay sibling libraries own the reusable runtime.
+   `bombay-entity` owns stable local entity identity, bounded on-demand
+   activation, admission, routing, passivation, and draining; Bombay owns
+   exact-incarnation execution, typed delivery, lifecycle interpretation, and
+   supervision. Location-transparent remote placement is a later, separate
+   capability.
 5. One disposable actor activation hosts each active aggregate instance. Its
    root is a rebuildable cache; the Mnesis stream remains authoritative.
 6. Tower interoperability is optional. Tower is not part of the domain or core
    contract.
 7. Reliable event propagation reads the committed Mnesis log and uses explicit
    receipts, checkpoints, retries, poison handling, and optional consumer
-   inboxes. Immediate Actorpass sends after append are not a reliable outbox.
+   inboxes. Immediate Bombay sends after append are not a reliable outbox.
 8. No generic mediator, dynamic message bus, global registry, `Any`, `TypeId`,
    or erased universal envelope is introduced.
 
@@ -42,10 +45,10 @@ This ADR alone must not be interpreted as a production-ready implementation.
 
 ## Naming
 
-Actorpass replaces the historical Bombay runtime. This repository does not
-support two competing actor runtimes. The `mnesis-bombay` name refers to the
-Bombay family of focused libraries. Runtime-specific production code belongs in
-the `mnesis-actorpass` crate.
+The current `bombay-rs` core replaces the historical Bombay implementation.
+This repository does not support two competing actor runtimes. The
+`mnesis-bombay` name refers to the Bombay family of focused libraries.
+Runtime-specific production code belongs in the `mnesis-bombay` crate.
 
 ## Context
 
@@ -61,17 +64,22 @@ Mnesis provides:
 
 Behaviorpass provides a typed transition algebra. A Behavior consumes one typed
 event and returns typed actions: sends, child creations, phase transition, stop,
-or error. Its architecture intends this transition to be pure, although Rust's
-async trait signature cannot enforce the absence of I/O.
+or error. The synchronous fold keeps I/O outside the Behavior transition.
 
-Actorpass supplies the runtime interpretation:
+The current Bombay runtime family supplies:
 
-- typed mailboxes and actor references;
-- sequential behavior turns;
-- bounded user-lane backpressure;
-- child lifecycle and supervision;
-- timers and completion observation;
-- statically selected `RouteSends` and `DeliveryRouter` capabilities.
+- Behavior's pure typed folds, semantic `SendProduct` composition, typed
+  recipients, shutdown/deadline protocols, and replacement-resolution facts;
+- Communication's sole two-lane mailbox, bounded user admission, per-lane
+  FIFO, closure, and rejected-payload recovery;
+- Address's exact registration identities and generation fencing;
+- Observe's retained terminal publication for one exact generation;
+- Timers' keyed, queue-branded, generation-safe monotonic schedules;
+- Entity's stable local identity, single-flight activation, bounded waiters,
+  typed refusal, exact-incarnation routing, processing fence, draining, and
+  passivation;
+- Bombay's exact-incarnation spawn/delivery, effect interpretation,
+  supervision, lifecycle reporting, and application-facing composition.
 
 The integration must not turn any one of these libraries into a framework that
 owns every concern.
@@ -102,8 +110,8 @@ testability, flexibility, and measured performance.
 - `mnesis-bombay-core` imports no runtime, transport, executor, or concrete
   storage adapter.
 - Mnesis durability primitives and the runtime-neutral protocol import no
-  Actorpass type. The Actorpass-hosted application adapter may compose both.
-- `mnesis-actorpass` is removable without changing domain commands or aggregate
+  Bombay type. The Bombay-hosted application adapter may compose both.
+- `mnesis-bombay` is removable without changing domain commands or aggregate
   decisions.
 - Tower, HTTP, CLI, NATS, and Zenoh are outer adapters.
 - A second host must use an abstraction before that abstraction is promoted to
@@ -113,20 +121,20 @@ testability, flexibility, and measured performance.
 
 - Domain decisions run synchronously without a runtime.
 - Application execution runs against in-memory and fault-injecting repositories
-  without Actorpass.
+  without Bombay.
 - Pure Behavior transcripts can assert command-to-request mapping without I/O.
-- The Actorpass route can be tested with a deterministic fake service.
+- The Bombay route can be tested with a deterministic fake service.
 - Readiness can be held pending to test mailbox backpressure.
 - Conflict, cancellation, panic, lost reply, duplicate delivery, and poison
   events are independently injectable.
-- End-to-end tests use actual `System::spawn`, `ActorRef`, Mnesis repository,
-  and current sibling source revisions.
+- End-to-end tests use actual `System::spawn`, `ActorRef`, Mnesis repositories,
+  and the locked released dependency graph.
 
 ### Flexibility
 
 The same application execution semantics must be usable by:
 
-- an Actorpass actor;
+- a Bombay actor;
 - a direct Tokio function;
 - HTTP or gRPC;
 - CLI and batch processing;
@@ -186,26 +194,33 @@ Owns:
 - cache invalidation after uncertainty;
 - returned committed position.
 
-The direct implementation remains usable without Actorpass. The Actorpass host
+The direct implementation remains usable without Bombay. The Bombay host
 may place the same Mnesis operations inside an entity activation, but it must
 not duplicate generally useful activation, routing, passivation, admission, or
 draining machinery in this repository.
 
-### 4. Actorpass and Bombay runtime facilities
+### 4. Bombay runtime facilities
 
-Actorpass and focused Bombay sibling crates own:
+Bombay and focused Bombay sibling crates own:
 
-- location-transparent typed entity lookup by stable entity key;
-- bounded, race-free activation and passivation;
-- mailbox admission and sequential turns per entity;
+- stable typed local entity lookup by `bombay_entity::EntityId`;
+- bounded, race-free local activation and passivation in `bombay-entity`;
+- mailbox admission in Communication/Bombay and entity admission in Entity;
 - concurrency across unrelated entities;
 - typed request/reply and timeout composition;
 - lifecycle, supervision, overload, draining, and shutdown mechanics;
 - tracing actor address/incarnation alongside domain identities.
 
-The `mnesis-actorpass` adapter supplies the opaque hydration factory and Mnesis
-command behavior. Actorpass does not own aggregate decisions, Mnesis conflict
+The `mnesis-bombay` adapter supplies the opaque hydration factory and Mnesis
+command behavior. Bombay does not own aggregate decisions, Mnesis conflict
 policy, durable outcomes, or event authority.
+
+The local binding uses Bombay #307's `System::activate`. Entity commits an
+activation only after this actor-runtime port reports successful transactional
+activation; Bombay completes the Behavior initialization fold before
+registering the endpoint and returns separately nameable cloneable delivery
+and affine retirement capabilities. Ordinary actors that do not require this
+visibility law continue to use `System::spawn`.
 
 ### 5. Optional Tower adapter
 
@@ -223,7 +238,7 @@ Tower remains optional because:
 - Mnesis already owns the durable execution primitive;
 - non-Tower users should not pay the dependency or conceptual cost.
 
-The Actorpass adapter should accept a statically typed service without requiring
+The Bombay adapter should accept a statically typed service without requiring
 dynamic dispatch. A Tower implementation can satisfy that seat.
 
 ### 6. Committed-event relay
@@ -250,9 +265,9 @@ The default is after receipt. No mode is called globally exactly-once.
 
 ```text
 caller
-  │ CommandRequest(aggregate_id, command_id, command, reply)
+  │ adapter envelope(CommandRequest, typed reply recipient)
   ▼
-Actorpass/locationpass entity route
+Bombay Entity local route
   │ locate or activate aggregate entity by stable key
   │ hydrate from Mnesis before readiness
   ▼
@@ -282,13 +297,17 @@ testable.
 
 A fixed shard scheduler in this integration is rejected as the default because
 it duplicates a general actor-runtime capability and can head-of-line block
-unrelated entities. Actorpass/locationpass provides one logical activation per
-active entity ID, bounded by explicit capacity and idle passivation.
+unrelated entities. `bombay-entity` provides one logical local activation per
+active entity ID, bounded activation waiters and explicit passivation. A
+global active-entity capacity remains a separately verified policy seam; it
+must not be inferred from the per-activation waiter bound. The reusable bound
+is assigned to `devrandom-labs/bombay-entity#6`.
 
-Production activation requirements belong upstream when they contain no
-Mnesis vocabulary: race-free get-or-activate, bounded active entities, safe
-passivation with in-flight exclusion, concurrency across unrelated entities,
-typed admission, draining, and lifecycle telemetry. This adapter supplies
+The released local Entity runtime already owns race-free get-or-activate,
+passivation with an ordered processing fence, concurrency across unrelated
+entities, typed admission refusal, and graceful/forced draining. Global active
+entity capacity and lifecycle facts remain explicit upstream seams, assigned to
+`devrandom-labs/bombay-entity#6` and `#7`. This adapter supplies
 hydrate-on-activation and discards or retires an activation after conflict,
 panic, or ambiguous cancellation.
 
@@ -298,13 +317,15 @@ Store optimistic concurrency remains the distributed correctness guard.
 
 There are two principal bounded resources:
 
-1. the Actorpass mailbox;
+1. the Bombay mailbox;
 2. active entity capacity and the Mnesis store.
 
 The runtime must not drain a mailbox into an unbounded internal queue. Entity
 activation admission, per-entity mailbox admission, and store pressure remain
-distinct observable boundaries. Actorpass owns generic wait/reject/drain
-mechanics; the adapter maps them to the core factual outcome vocabulary.
+distinct observable boundaries. Communication owns mailbox pressure; Entity
+owns activation waiters, reservation closure, fences, and drain facts;
+Bombay owns exact-incarnation delivery. The adapter maps those facts and
+store readiness into the core factual outcome vocabulary.
 
 Timeout is not cancellation safety. If an append future is dropped when commit
 status is unknown, the cached root is invalidated and the caller receives an
@@ -355,19 +376,20 @@ baseline.
 ### Direct external execution only
 
 Maximum runtime independence and simplest command path. Retained as a required
-host and dissenting architecture. It does not provide Actorpass affinity,
+host and dissenting architecture. It does not provide Bombay affinity,
 mailbox admission, or supervision when those are product requirements.
 
-### Expose Actorpass Environment and RuntimeEffects
+### Expose Bombay Environment and RuntimeEffects
 
 Insufficient. Visibility alone does not define load, persistence intent,
 append-before-send ordering, reply recovery, or checkpoint semantics.
 
-### Persistence actor selected as the Actorpass host
+### Persistence actor selected as the Bombay host
 
-Selected for the Actorpass topology. One disposable activation per active
+Selected for the Bombay topology. One disposable activation per active
 aggregate gives per-entity sequential turns and concurrency across unrelated
-entities. Generic route/create/passivate mechanics belong in locationpass;
+entities. Generic local route/create/passivate mechanics belong in
+`bombay-entity`;
 Mnesis hydration, decision, append, and factual outcomes remain in an
 application interpreter attached to the activation, outside the pure Behavior.
 The mailbox and supervision do not improve the durable transaction or make an
@@ -393,15 +415,15 @@ an optional adapter until multiple hosts prove it belongs in the public surface.
 
 ### Historical Bombay runtime
 
-Rejected as a target because Actorpass replaces it.
+Rejected as a target because Bombay replaces it.
 
 ## Consequences
 
 ### Positive
 
 - Domain decision purity is preserved.
-- Mnesis and Actorpass remain independently usable.
-- Direct and Actorpass hosts share execution semantics.
+- Mnesis and Bombay remain independently usable.
+- Direct and Bombay hosts share execution semantics.
 - Tower/HTTP interoperability can be added without infecting core crates.
 - Static typing and monomorphization remain available end to end.
 - Backpressure has an explicit readiness seat.
@@ -427,26 +449,30 @@ Rejected as a target because Actorpass replaces it.
 
 ## Validation evidence so far
 
-The moved comparative benchmark uses current sibling source checkouts and proves:
+The comparative benchmark now uses the current pure Behavior contract and
+exercises:
 
 - direct Mnesis execution;
-- repository-owning Actorpass Behavior execution;
 - pure Behavior plus custom service route;
 - pure Behavior plus monomorphized Tower service route;
 - actual `System::spawn` and `ActorRef::send`;
 - durable reload after execution;
 - 1, 64, and 1,024 actor identities through a 64-shard cache.
 
-The initial four-worker in-memory medians for 10,000 hot commands were:
+The initial 2026-08-09 four-worker in-memory medians for 10,000 hot commands
+are retained as historical experiment evidence:
 
 | Path | Pipelined ns/op | Durable round-trip ns/op |
 |---|---:|---:|
 | direct Mnesis | 605 | 605 |
-| repository-owning Behavior | 801 | 8,594 |
+| repository-owning Behavior (historical Behavior 0.8 experiment) | 801 | 8,594 |
 | pure Behavior + custom route | 523 | 7,772 |
 | pure Behavior + Tower route | 506 | 7,812 |
 
-These are overhead-floor measurements, not production claims.
+These are overhead-floor measurements, not current 0.9 benchmark results or
+production claims. Repository-owning Behavior is no longer compiled because
+the current Behavior algebra is a synchronous pure fold; Mnesis I/O belongs in
+the application interpreter.
 
 ## Mandatory gates before acceptance
 
@@ -462,10 +488,9 @@ These are overhead-floor measurements, not production claims.
 - Benchmark at least one real durable adapter.
 - Record p50/p95/p99 under concurrent producers.
 - Compile the core crate for a no-std target.
-- Prove Actorpass/Tower are absent from the core feature graph.
+- Prove Bombay/Tower are absent from the core feature graph.
 - Add compile-fail tests for mixed identity/protocol types.
 - Run an independent red-team review.
-- Publish Actorpass or expose a remotely fetchable pinned revision so the full
-  workspace and Nix checks are hermetic rather than sibling-path dependent.
+- Keep the standalone registry graph and Nix evaluation hermetic.
 
-Until these gates pass, this ADR remains Proposed.
+Until these gates pass, this accepted architecture is not production-ready.
