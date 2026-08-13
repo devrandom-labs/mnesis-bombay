@@ -9,7 +9,7 @@ repository.workspace = true
 description = "Optional Tower interoperability for Mnesis Bombay application services"
 
 [dependencies]
-mnesis-bombay-core = { path = "../core" }
+mnesis-bombay-core = { version = "0.1.0", path = "../core" }
 tower-service.workspace = true
 
 [lints]

@@ -1,4 +1,4 @@
-//! Actorpass-specific integration boundary.
+//! Bombay-specific integration boundary.
 //!
 //! The production API remains deliberately small while failure and readiness
 //! semantics are validated. The architecture is specified in ADR 0001.

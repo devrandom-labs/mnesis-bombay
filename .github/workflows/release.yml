@@ -1,4 +1,4 @@
-name: Release PR
+name: Publish
 
 on:
   workflow_dispatch:
@@ -9,22 +9,20 @@ on:
       - "crates/**"
       - "Cargo.toml"
       - "Cargo.lock"
-      - "release-plz.toml"
 
 permissions: {}
 
 concurrency:
-  group: release-pr-${{ github.ref }}
-  cancel-in-progress: true
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  release-pr:
-    name: Create or update release PR
+  publish:
+    name: Publish crates
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     permissions:
       contents: write
-      pull-requests: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -42,26 +40,10 @@ jobs:
           app-id: ${{ secrets.RELEASE_PLZ_APP_ID }}
           private-key: ${{ secrets.RELEASE_PLZ_APP_PRIVATE_KEY }}
 
-      - name: Detect merged release PR
-        id: release-commit
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          REPOSITORY: ${{ github.repository }}
-          COMMIT_SHA: ${{ github.sha }}
-        run: |
-          if ! is_release="$(
-            gh api "repos/$REPOSITORY/commits/$COMMIT_SHA/pulls" \
-              --jq 'any(.[]; .head.ref | startswith("release-plz-"))'
-          )"; then
-            echo "::error::Unable to determine whether this is a release commit"
-            exit 1
-          fi
-          printf 'is-release=%s\n' "$is_release" >> "$GITHUB_OUTPUT"
-
-      - name: Create or update release PR
-        if: steps.release-commit.outputs.is-release != 'true'
+      - name: Publish and tag releases
         uses: release-plz/action@b11437f8c0e955c306676ceaf8ce8c54eba6004f # v0.5
         with:
-          command: release-pr
+          command: release
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_SECRET }}

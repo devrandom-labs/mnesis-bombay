@@ -1,6 +1,6 @@
 //! Runtime-, transport-, and storage-adapter-neutral application protocol.
 //!
-//! This crate intentionally does not depend on Actorpass, Tower, Tokio, HTTP,
+//! This crate intentionally does not depend on Bombay, Tower, Tokio, HTTP,
 //! or a concrete Mnesis store adapter.
 
 #![no_std]

@@ -1,5 +1,5 @@
 {
-  description = "mnesis-bombay — runtime-neutral Mnesis integration with Actorpass";
+  description = "mnesis-bombay — runtime-neutral Mnesis integration with Bombay";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
@@ -55,7 +55,22 @@
             src = pkgs.lib.sources.sourceFilesBySuffices src [ ".toml" ];
           };
           cargo-deny = craneLib.cargoDeny { inherit src; };
-          cargo-audit = craneLib.cargoAudit { inherit src advisory-db; };
+          cargo-deny-advisories = craneLib.cargoDeny (commonArgs // {
+            cargoDenyChecks = "advisories --disable-fetch";
+            nativeBuildInputs = [ pkgs.git ];
+            preBuild = ''
+              mkdir -p "$CARGO_HOME/advisory-dbs"
+              db="$CARGO_HOME/advisory-dbs/advisory-db-3157b0e258782691"
+              cp -R ${advisory-db} "$db"
+              chmod -R u+w "$db"
+              git -C "$db" init --quiet
+              git -C "$db" add .
+              git -C "$db" \
+                -c user.name=RustSec -c user.email=rustsec@example.invalid \
+                commit --quiet -m "Pinned RustSec advisory database"
+              git -C "$db" rev-parse HEAD > "$db/.git/FETCH_HEAD"
+            '';
+          });
           core-nostd = craneLib.mkCargoDerivation (commonArgs // {
             inherit cargoArtifacts;
             pname = "mnesis-bombay-core-nostd";

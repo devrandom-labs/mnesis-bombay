@@ -1,12 +1,8 @@
 # mnesis-bombay
 
-Typed integration between Mnesis and the Bombay ecosystem's current runtime,
-Actorpass.
-
-Actorpass replaces the historical Bombay runtime. The repository name denotes
-the wider Bombay family (`behaviorpass`, `bombay-communication`,
-`bombay-address`, `bombay-observe`, and `bombay-timers`); it does not mean this
-project targets both runtimes.
+Typed integration between Mnesis and the Bombay runtime ecosystem. The current
+`bombay-rs` core supersedes the legacy implementation formerly stored in the
+Bombay repository; this project targets only the current runtime.
 
 ## Architecture
 
@@ -19,16 +15,17 @@ mnesis-bombay-core
    ↙             ↘
 direct hosts   optional Tower adapter
         ↘       ↙
-      mnesis-actorpass
-             ↓
-          Actorpass
+      mnesis-bombay
+          ↙       ↘
+ bombay-entity   Bombay
 ```
 
-The leading design keeps Behavior pure. It emits a typed execution request;
-Actorpass interprets the request through a typed service route that owns
-durability, key affinity, cache policy, conflicts, and replies. Reliable event
-delivery originates from the committed Mnesis log, never a transient
-post-append actor send.
+The leading design keeps Behavior pure. Bombay Entity owns stable local entity
+identity, activation, admission, routing, draining, and passivation; Bombay
+owns exact-incarnation execution and effect interpretation. The Mnesis adapter
+owns hydration, durable execution, conflict/ambiguity policy, and factual
+replies. Reliable event delivery originates from the committed Mnesis log,
+never a transient post-append actor send.
 
 Read [ADR 0001](docs/adr/0001-runtime-neutral-command-execution.md) before
 changing dependency direction or introducing a handler/mediator abstraction.
