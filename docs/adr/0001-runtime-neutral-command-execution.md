@@ -205,6 +205,13 @@ Owns:
 - cache invalidation after uncertainty;
 - returned committed position.
 
+This policy is packaged as `mnesis-bombay-execution`, which depends on
+`mnesis-bombay-core` and `mnesis-store` but not Bombay, Tokio, Tower, a
+transport, or a concrete store. A transparent repository decorator observes
+the exact `save` call made by Mnesis's own `CommandRepository::execute`, so the
+adapter can distinguish pure decision from append-in-flight without copying
+Mnesis's decide-then-save implementation.
+
 The direct implementation remains usable without Bombay. The Bombay host
 may place the same Mnesis operations inside an entity activation, but it must
 not duplicate generally useful activation, routing, passivation, admission, or

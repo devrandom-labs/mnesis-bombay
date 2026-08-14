@@ -12,15 +12,17 @@ The dependency direction is strict:
 domain using Mnesis
         ↓
 mnesis-bombay-core
-   ↙             ↘
-direct hosts   optional Tower adapter
-        ↘       ↙
-      mnesis-bombay
+        ↓
+mnesis-bombay-execution ← direct hosts
+        ↓                      ↖
+      mnesis-bombay      optional Tower adapter
           ↙       ↘
  bombay-entity   Bombay
 ```
 
-The leading design keeps Behavior pure. Bombay Entity owns stable local entity
+The execution crate composes Mnesis's existing `CommandRepository` without a
+Bombay dependency; direct hosts and aggregate actors share that exact durable
+path. The leading design keeps Behavior pure. Bombay Entity owns stable local entity
 identity, activation, admission, routing, draining, and passivation; Bombay
 owns exact-incarnation execution and effect interpretation. The Mnesis adapter
 owns hydration, durable execution, conflict/ambiguity policy, and factual

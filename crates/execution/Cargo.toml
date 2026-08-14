@@ -1,21 +1,24 @@
 [package]
-name = "mnesis-bombay"
+name = "mnesis-bombay-execution"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
-description = "Typed Bombay adapter for Mnesis command execution and committed events"
+description = "Runtime-independent Mnesis command execution with factual outcomes"
 
 [dependencies]
-behavior.workspace = true
-bombay.workspace = true
-bombay-entity.workspace = true
 mnesis.workspace = true
 mnesis-bombay-core = { version = "0.2.0", path = "../core" }
-mnesis-bombay-execution.workspace = true
 mnesis-store.workspace = true
+
+[dev-dependencies]
+bytes.workspace = true
+mnesis-inmemory.workspace = true
+parking_lot.workspace = true
+thiserror = "2"
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "sync"] }
 
 [lints]
 workspace = true

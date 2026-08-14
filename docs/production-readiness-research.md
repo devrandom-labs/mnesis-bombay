@@ -61,6 +61,7 @@ remote mailbox guarantee. A local adapter must never imply those guarantees.
 | Bombay Behavior | pure event-to-actions algebra and closed typed protocols | I/O, repositories, queues, durability, restart implementation |
 | Bombay runtime family | Behavior algebra; Communication mailbox; Address registration fencing; Observe exact-generation completion; Timers scheduling; Entity local activation/admission/draining/passivation; Bombay exact-incarnation execution and interpretation | aggregate semantics, durable acceptance, Mnesis conflict policy |
 | `mnesis-bombay-core` | runtime-neutral request/outcome vocabulary and command-phase facts | Tokio, Tower, Bombay, concrete store |
+| `mnesis-bombay-execution` | Mnesis load/execute composition, explicit bounded conflict replay, commit-uncertainty classification and externally observable command phase | actors, transports, concrete store construction, generic repositories |
 | `mnesis-bombay` | Mnesis hydration factory and activation-owned application interpreter, outcome mapping, committed-log relay composition | generic entity directory, activation scheduler, passivation, runtime admission/drain mechanics |
 | optional Tower crate | `Service` interoperability and middleware mapping | semantic retry defaults or durable truth |
 | ingress/egress adapter | serialization, authentication evidence, protocol acknowledgements | changing internal failure meaning |

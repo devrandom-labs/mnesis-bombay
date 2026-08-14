@@ -9,5 +9,9 @@
 mod routing;
 mod transport;
 
+pub use mnesis_bombay_execution::{
+    CommandAttempts, CommitFailure, DirectCommandOutcome, Once, PhaseTracker, Replay,
+    execute_command,
+};
 pub use routing::into_entity_delivery;
 pub use transport::ExecuteRequest;

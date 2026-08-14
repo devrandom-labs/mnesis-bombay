@@ -429,9 +429,9 @@ dependencies = [
 
 [[package]]
 name = "mnesis"
-version = "0.2.2"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9a54eaee58aded93b533b04db8a8ab48df3d892b1a016d7d2fc7e449044f000e"
+checksum = "6f6b3b5e90e46e69257f50fb976bd02fdacf065e0033b14bd5064adc7aea4280"
 dependencies = [
  "arrayvec",
  "thiserror",
@@ -446,6 +446,7 @@ dependencies = [
  "bombay-rs",
  "mnesis",
  "mnesis-bombay-core",
+ "mnesis-bombay-execution",
  "mnesis-store",
 ]
 
@@ -455,6 +456,20 @@ version = "0.2.0"
 dependencies = [
  "mnesis",
  "trybuild",
+]
+
+[[package]]
+name = "mnesis-bombay-execution"
+version = "0.2.0"
+dependencies = [
+ "bytes",
+ "mnesis",
+ "mnesis-bombay-core",
+ "mnesis-inmemory",
+ "mnesis-store",
+ "parking_lot",
+ "thiserror",
+ "tokio",
 ]
 
 [[package]]
@@ -483,9 +498,9 @@ dependencies = [
 
 [[package]]
 name = "mnesis-inmemory"
-version = "0.2.2"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c40e2278614b22689e4b096d3450a43d6819974d2fabf73e97836a0fdb7e6bc6"
+checksum = "bd7f24848a503d601a668f5e2af5aa760ba7acfc9d3685b007df20c6058e9915"
 dependencies = [
  "bytes",
  "futures",
@@ -499,9 +514,9 @@ dependencies = [
 
 [[package]]
 name = "mnesis-store"
-version = "0.2.2"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2bba13288a26d9b87cdf8d6f985eb568e3f9eaaaa20b9c7ce8863137197f9daf"
+checksum = "aea6abc86061a4a491c7fb34792fbcecbcb30dd6a3cc7a94a0a35f21ce225596"
 dependencies = [
  "aligned-vec",
  "arrayvec",
@@ -517,9 +532,9 @@ dependencies = [
 
 [[package]]
 name = "mnesis-wake"
-version = "0.2.2"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "988380e10547d7bf1637238af2f3463fa153bfd8c1691529ec466a2e41e683c5"
+checksum = "89d27da0521c29213cc241066fd8f12a8f74761f9f954772f52f5ed79766edfb"
 dependencies = [
  "foldhash",
  "mnesis-store",
