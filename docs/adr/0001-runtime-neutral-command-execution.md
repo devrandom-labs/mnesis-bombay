@@ -2,8 +2,8 @@
 
 - Status: Accepted boundary; production implementation gated by the capability
   audit
-- Date: 2026-08-09; amended 2026-08-14 for the released Entity runtime and
-  current Bombay contracts
+- Date: 2026-08-09; amended 2026-08-14 for the released Entity runtime,
+  current Bombay contracts, and the actor-native CQRS/ES application topology
 - Decision owners: Mnesis and Bombay maintainers
 - Scope: command execution, runtime integration, replies, event propagation,
   modularity, testability, and performance
@@ -34,6 +34,14 @@ The leading architecture is:
    inboxes. Immediate Bombay sends after append are not a reliable outbox.
 8. No generic mediator, dynamic message bus, global registry, `Any`, `TypeId`,
    or erased universal envelope is introduced.
+9. Bombay is the default operational assembly, not merely a command adapter.
+   Aggregate instances, projection partitions, saga/process-manager instances,
+   committed-log relay partitions, and external-effect delivery partitions are
+   independently supervised actor roles with distinct typed protocols.
+10. Pure decisions and durable primitives do not become actors. Actors own
+    identity, activation, serialized turns, bounded concurrency, timers and
+    lifecycle; Mnesis owns streams, append facts, positions, checkpoints, saga
+    state/intents, and durable inbox/outbox records.
 
 This decision is provisional until the failure, readiness, allocation,
 durable-store, and high-cardinality performance gates below pass.
@@ -276,6 +284,51 @@ Checkpoint modes are explicit:
 
 The default is after receipt. No mode is called globally exactly-once.
 
+### 7. Actor-native CQRS/ES topology
+
+The default Bombay-facing application is a statically composed actor topology,
+not a collection of unrelated async services:
+
+```text
+typed ingress
+    │
+    ▼
+aggregate Entity<A::Id> ──append──▶ Mnesis committed log
+                                         │
+                         supervised relay partition actors
+                              ┌──────────┼──────────┐
+                              ▼          ▼          ▼
+                     projection     saga Entity    effect-delivery
+                     partition      <Saga::Id>     partition actor
+                       actor           actor
+                              │          │          │
+                              └──── durable receipts/checkpoints ────┘
+```
+
+- One active aggregate Entity actor owns the disposable `AggregateRoot<A>`
+  cache for one application-selected aggregate identity.
+- A projection worker actor owns one explicitly bounded partition and advances
+  its Mnesis checkpoint only at the projection's declared durable boundary.
+- A saga/process-manager Entity actor owns one active saga identity. Mnesis
+  persists its state, consumed position, and projected intents; durable
+  schedules may reactivate it, while an in-memory timer alone is not workflow
+  durability.
+- Relay and effect-delivery actors own bounded intake, retry scheduling,
+  poison policy, supervision, and drain. Their checkpoints and inbox/effect
+  records remain durable Mnesis or application-store facts.
+- A typed read-your-writes waiter coordinates a command's committed position
+  with a projection checkpoint. It does not turn a mailbox acknowledgement
+  into a consistency guarantee.
+- One typed composition root installs these roles and their supervision and
+  shutdown relationships. It does not use a service locator, dynamic handler
+  registry, `Any`, `TypeId`, or a universal envelope.
+
+Direct execution remains a supported secondary adapter and test seam. It is
+not the default product topology. Pure `Handle` decisions, event application,
+codecs, validation, checkpoint arithmetic, and repository/store primitives
+remain ordinary deterministic or durable components; actorizing them would
+add message boundaries without adding an ownership or concurrency invariant.
+
 ## Command sequence
 
 ```text
@@ -451,6 +504,9 @@ Rejected as a target because Bombay replaces it.
 - Static typing and monomorphization remain available end to end.
 - Backpressure has an explicit readiness seat.
 - Repository-owning actors remain available as a comparison, not dogma.
+- The default application surface makes actor identity, supervision,
+  concurrency, timers, passivation and bounded queues visible across the full
+  CQRS/ES lifecycle, not only aggregate command handling.
 
 ### Negative
 
@@ -460,6 +516,8 @@ Rejected as a target because Bombay replaces it.
 - Actor supervision cannot undo a committed append.
 - Application replies require an additional async hop.
 - Effectful event consumers still require a separate committed-log relay.
+- More actor roles require explicit partitioning, supervision ownership,
+  capacity budgets and shutdown ordering in the public composition API.
 
 ### Risks
 
