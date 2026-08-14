@@ -173,9 +173,12 @@ or retries.
 
 Owns:
 
-- aggregate ID;
-- command ID;
-- typed command payload;
+- preservation of the Mnesis-owned `A::Id` and `A: Handle<C, N>` relationship;
+- application-owned command, causation and correlation identities in distinct
+  generic roles;
+- a typed command payload for an already-selected aggregate instance;
+- validated, bounded and redacted application context;
+- direct-host addressing as `Addressed<A::Id, CommandRequest<..>>`;
 - typed durable outcome vocabulary.
 
 It does not own reply channels, actors, middleware frameworks, or storage
@@ -215,12 +218,24 @@ The `mnesis-bombay` adapter supplies the opaque hydration factory and Mnesis
 command behavior. Bombay does not own aggregate decisions, Mnesis conflict
 policy, durable outcomes, or event authority.
 
+For local hosting, the adapter is the sole translation from an application
+`A::Id` into `bombay_entity::EntityId<A::Id>`. It then delivers the command
+payload unchanged. The payload does not repeat the aggregate ID, preventing a
+routed Entity identity and an embedded application identity from disagreeing.
+
 The local binding uses Bombay #307's `System::activate`. Entity commits an
 activation only after this actor-runtime port reports successful transactional
 activation; Bombay completes the Behavior initialization fold before
 registering the endpoint and returns separately nameable cloneable delivery
 and affine retirement capabilities. Ordinary actors that do not require this
 visibility law continue to use `System::spawn`.
+
+`bombay-entity` already composes `bombay-transition` and
+`bombay-machine-executor` for its deterministic lifecycle and serialized turn
+policies. The adapter consumes Entity's resulting typed facts rather than
+building a second lifecycle machine. Mnesis load/append is external async I/O,
+so a machine-executor turn receipt cannot serve as durable-command evidence;
+only the Mnesis repository result advances the command durability phase.
 
 ### 5. Optional Tower adapter
 
@@ -265,9 +280,10 @@ The default is after receipt. No mode is called globally exactly-once.
 
 ```text
 caller
-  │ adapter envelope(CommandRequest, typed reply recipient)
+  │ Addressed<A::Id, CommandRequest<A, C, ..>>
   ▼
 Bombay Entity local route
+  │ adapter consumes A::Id into EntityId<A::Id>
   │ locate or activate aggregate entity by stable key
   │ hydrate from Mnesis before readiness
   ▼
@@ -275,7 +291,7 @@ aggregate activation mailbox
   │ one sequential command turn for this entity
   ▼
 pure command Behavior
-  │ validate and emit ExecuteRequest
+  │ validate and emit ExecuteRequest<CommandRequest, typed reply recipient>
   ▼
 activation-owned application interpreter
   │ decide + append through CommandRepository
@@ -292,6 +308,13 @@ durable turn reaches a factual outcome. Different entity activations progress
 concurrently. The Behavior remains pure; an application interpreter attached
 to the activation owns Mnesis I/O and keeps domain decision separately
 testable.
+
+No executor trait is introduced in core. Mnesis already supplies the two
+relevant capabilities: `Handle<C, N>` for pure decision and
+`CommandRepository<A>::execute` for decide then durable save. Direct and Bombay
+hosts are compositions around that concrete port, not two implementations of a
+new general executor abstraction. Reconsider only after a second real
+execution implementation proves a smaller missing variability boundary.
 
 ## Activation and passivation
 

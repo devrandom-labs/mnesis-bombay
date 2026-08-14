@@ -11,6 +11,7 @@ description = "Typed Bombay adapter for Mnesis command execution and committed e
 [dependencies]
 behavior.workspace = true
 bombay.workspace = true
+bombay-entity.workspace = true
 mnesis.workspace = true
 mnesis-bombay-core = { version = "0.1.0", path = "../core" }
 mnesis-store.workspace = true

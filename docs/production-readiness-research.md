@@ -66,8 +66,8 @@ end-to-end policy is complete. **add** is required production work.
 | Capability | Required invariant | Existing evidence | Owner and action |
 |---|---|---|---|
 | aggregate selection | command type maps statically to exactly one aggregate type | Mnesis `Handle<C>` and aggregate traits | **compose Mnesis:** typed endpoint; no registry or duplicate handler abstraction |
-| instance selection | request always carries validated `A::Id` | domain IDs and Mnesis stream mapping exist | **add core:** `CommandRequest<A::Id, C>` |
-| stable execution key | tenant/kind/id cannot be confused with actor incarnation | identity distinctions documented only | **add core:** newtypes and explicit mapping |
+| instance selection | direct routing carries exactly `A::Id`; an Entity-hosted payload cannot carry a second disagreeing aggregate ID | Mnesis `Aggregate::Id`; Entity `EntityId<T>` | **compose:** `Addressed<A::Id, CommandRequest<A, C, ..>>` for direct hosts; the Bombay adapter alone maps it to `EntityId<A::Id>` plus the unchanged payload |
+| stable execution key | application ID, Entity stable identity, activation generation and actor incarnation remain distinct | generic Mnesis IDs and typed Entity/Bombay identities exist | **compose existing types:** do not replace them with integration-owned ID representations |
 | startup registration | host explicitly installs each supported aggregate family | `bombay-entity` 0.1.0 `EntityDefinition`/`LocalEntityRuntime` seats | **adapter:** typed Mnesis definition and Bombay runtime binding |
 | activation | first command lazily reconstructs a missing root | Mnesis `Repository::load`; Entity single-flight activation and opaque preparation | **compose existing:** prepare from Mnesis, activate through Entity/Bombay |
 | passivation | idle roots are evicted without losing truth | Entity exact-incarnation drain fence and passivation | **compose existing:** disposable Mnesis activation; separately verify idle/global-capacity policy |
@@ -127,37 +127,52 @@ end-to-end policy is complete. **add** is required production work.
 
 ## Required public protocol
 
-The current generic `CommandRequest<I, C>` and `CommandOutcome<P, R, E>` are
-only placeholders. The production protocol must represent facts rather than
-transport machinery:
+The original `CommandRequest<I, C>` and `CommandOutcome<P, R, E>` were
+placeholders. Reconciliation with Mnesis 0.2.2 and `bombay-entity` 0.1.0 makes
+the aggregate/command and routing relationships structural rather than
+duplicating them in an envelope:
 
 ```rust,ignore
-struct CommandRequest<A, C> {
-    aggregate_id: A,
-    command_id: CommandId,
+struct CommandRequest<A, C, Identity, Context, Deadline, const N: usize = 0>
+where
+    A: Aggregate + Handle<C, N>,
+{
+    identity: Identity,
     command: C,
-    context: CommandContext,
+    context: Context,
     deadline: Option<Deadline>,
 }
 
-enum CommandOutcome<P, O, R, S> {
-    Committed { position: P, output: O, duplicate: bool },
+struct Addressed<Id, Message> { id: Id, message: Message }
+
+enum CommandOutcome<P, O, R, C, S, A, CommandId> {
+    Ignored { output: O },
+    Committed { position: P, output: O },
     Rejected(R),
-    ConflictExhausted { attempts: NonZeroU32 },
+    ConflictExhausted { source: C, attempts: NonZeroU32 },
     Storage(S),
-    Overloaded { retry_after: Option<Duration> },
+    Overloaded(A),
     DeadlineBeforeExecution,
     AmbiguousCompletion { command_id: CommandId },
     ShuttingDown,
 }
 ```
 
-Transport reply channels do not belong inside this core request. An Bombay
-adapter envelope may add a typed reply capability around it.
+Mnesis owns the application-selected `A::Id`, the `A: Handle<C, N>` pairing,
+pure decision, and `CommandRepository::execute`. Core preserves those types. A
+direct host selects an instance with
+`Addressed<A::Id, CommandRequest<A, C, ..>>`; the Bombay adapter consumes that
+address and creates `EntityId<A::Id>`, so an activation-bound command carries
+no duplicate ID. Transport reply channels do not belong inside the core
+request. A Bombay `ExecuteRequest<Request, Reply>` adds the typed reply
+capability only at the runtime boundary.
 
-`CommandContext` must carry typed or validated command identity, causation,
+Applications own the representation of command identity, causation,
 correlation, authenticated principal evidence, tenant, trace context and
-schema/protocol version. It must have explicit size limits and redaction rules.
+schema/protocol version. `CommandIdentity` preserves the first three in
+distinct generic roles. `ValidatedContext<C, MAX_BYTES>` requires the
+application's `Context` policy to measure, validate and redact the remaining
+facts before a request can carry them.
 
 ## Entity activation and Mnesis execution state machines
 

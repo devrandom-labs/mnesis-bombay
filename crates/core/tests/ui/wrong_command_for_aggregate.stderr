@@ -1,0 +1,13 @@
+error[E0308]: mismatched types
+ --> tests/ui/wrong_command_for_aggregate.rs:8:60
+  |
+8 |     let _ = CommandRequest::<Account, _, _, _, _>::new((), Ship, context(), None::<()>);
+  |             ------------------------------------------     ^^^^ expected `Deposit`, found `Ship`
+  |             |
+  |             arguments to this function are incorrect
+  |
+note: associated function defined here
+ --> src/command.rs
+  |
+  |     pub const fn new(
+  |                  ^^^

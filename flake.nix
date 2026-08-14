@@ -28,6 +28,9 @@
           root = ./.;
           fileset = pkgs.lib.fileset.unions [
             (craneLib.fileset.commonCargoSources ./.)
+            # trybuild's accepted compiler diagnostics are test inputs, but
+            # crane's common Cargo source filter does not include `.stderr`.
+            ./crates/core/tests/ui
             ./docs
           ];
         };
