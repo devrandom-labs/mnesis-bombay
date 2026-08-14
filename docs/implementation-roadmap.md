@@ -89,6 +89,10 @@ Exit: local crashes restore availability, uncertain roots are never reused,
 all queues/activations have measured upstream bounds, and unrelated aggregate
 entities make concurrent progress.
 
+The Bombay host is the default operational surface. Direct execution remains
+a secondary adapter and test seam; it must not become the application
+composition root merely because it is implemented first.
+
 ## Phase 4 — Durable command identity
 
 Repositories: Nexus first, then `mnesis-bombay`
@@ -105,11 +109,12 @@ Repositories: Nexus first, then `mnesis-bombay`
 Exit: retry with the same command ID cannot apply a command twice at the named
 inbox+event-stream transaction boundary.
 
-## Phase 5 — Committed-event relay
+## Phase 5 — Actor-hosted committed-event relay
 
 Repositories: `mnesis-bombay`; optional Nexus consumer-inbox capability
 
-- Build one relay per consumer group over Mnesis `$all` subscription.
+- Build supervised Bombay relay actors per explicitly bounded consumer-group
+  partition over the Mnesis `$all` subscription.
 - Persist relay state and checkpoint atomically through `SnapshotStore`.
 - Implement typed receipt levels, bounded retry with jitter/backoff, poison
   policy and quarantine inspection/replay.
@@ -121,7 +126,48 @@ Repositories: `mnesis-bombay`; optional Nexus consumer-inbox capability
 Exit: crash tests prove no silent checkpoint skip and explicitly characterize
 duplicates for every receipt mode.
 
-## Phase 6 — Operations and release
+## Phase 6 — Actor-hosted projections and process managers
+
+Repositories: `mnesis-bombay`; reuse Mnesis projection, saga, subscription,
+snapshot and projected-intent capabilities
+
+- Host each projection partition as a supervised Bombay actor with sequential
+  partition turns, bounded intake, durable checkpoint recovery and concurrent
+  progress across partitions.
+- Host each active saga/process-manager identity as a Bombay Entity actor,
+  hydrated from Mnesis and passivated as a disposable cache.
+- Keep projection view commits, saga state/positions/intents, durable schedules
+  and effect inbox/outbox records at explicitly named durable boundaries.
+- Route committed events, follow-up commands and external effects through
+  distinct typed protocols and receipt levels.
+- Add typed read-your-writes coordination from a command committed position to
+  a projection checkpoint.
+
+Exit: projection and saga actors recover from their durable Mnesis facts after
+crash/passivation, slow partitions do not block unrelated partitions, and no
+mailbox or timer acknowledgement is mistaken for durability.
+
+## Phase 7 — Actor-native application assembly
+
+Repository: `mnesis-bombay`
+
+- Provide one statically typed composition root for aggregate entities,
+  projection actors, saga entities, relay/effect-delivery actors and their
+  supervisors.
+- Validate definitions, dependencies, store capabilities, capacity budgets and
+  durability modes at startup.
+- Define explicit supervision ownership and shutdown order for every actor
+  role; reject partial startup without leaking registered incarnations.
+- Preserve distinct identities for domain instances, actor incarnations,
+  partitions, consumer groups, commands, correlations and Mnesis positions.
+- Prohibit a service locator, global registry, `Any`, `TypeId`, universal
+  envelope and hidden unbounded queues on the typed path.
+
+Exit: the reference application is assembled actor-first and exercises the
+complete command → aggregate → committed event → projection/saga → effect
+topology under one explicit Bombay supervision tree.
+
+## Phase 8 — Operations and release
 
 Repositories: `mnesis-bombay`, reference application and deployment assets
 
@@ -138,7 +184,7 @@ Repositories: `mnesis-bombay`, reference application and deployment assets
 Exit: every gate in `production-readiness-research.md` links to reproducible
 evidence and an operator can diagnose/recover the reference deployment.
 
-## Phase 7 — Distributed entity hosting and fencing
+## Phase 9 — Distributed entity hosting and fencing
 
 Locationpass deliberately gives the adapter one location-transparent interface,
 but local activation ownership is not distributed single-writer proof. The

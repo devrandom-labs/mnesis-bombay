@@ -2,7 +2,8 @@
 
 Status: normative research and implementation backlog
 
-Date: 2026-08-09; dependency contracts reconciled 2026-08-13
+Date: 2026-08-09; dependency contracts reconciled 2026-08-13; actor-native
+topology amended 2026-08-14
 
 Scope: a correct, operable Mnesis command/event integration hosted by Bombay
 
@@ -12,27 +13,33 @@ identifies the upstream work that cannot honestly be hidden in an adapter.
 
 ## Final boundary decision
 
-The integration is five cooperating systems, not one command handler:
+The integration is a cooperating actor topology over runtime-neutral semantics
+and durable Mnesis capabilities, not one command handler:
 
 ```text
 ingress adapters (HTTP, CLI, NATS, Zenoh)
                   │ typed command + deadline + identity
                   ▼
-runtime-neutral application executor
+runtime-neutral execution semantics
                   │ load → decide → append → durable outcome
           ┌───────┴────────┐
           │                │
- direct host       Bombay host adapter
+ direct adapter    Bombay actor-native application (default)
                            │ Bombay Entity local route
                            │ bounded activation/passivation
+                           ▼
+                  aggregate Entity actors
+                           │ append
                            ▼
                      Mnesis event store
                            │ committed $all subscription
                            ▼
-                  checkpointed event relay
-                           │ receipt/inbox policy
-                           ▼
-                    event consumers/effects
+                  supervised relay actors
+                    ┌──────┼─────────┐
+                    ▼      ▼         ▼
+              projection  saga     effect-delivery
+                 actors   actors       actors
+                    └── durable receipts/checkpoints ──┘
 ```
 
 The compiler selects the aggregate implementation from the typed endpoint.
@@ -91,6 +98,8 @@ end-to-end policy is complete. **add** is required production work.
 | immediate command reply | reply only after durable fact | Bombay F3 typed recipient/timeout composition is feature-complete | **adapter:** send only a factual Mnesis outcome through the existing typed recipient |
 | committed event source | reliable notifications originate after append | Mnesis `$all` subscription and positions | **use existing** |
 | relay checkpoint | resume strictly after last acknowledged policy boundary | positions exist; generic consumer runner intentionally absent | **add adapter relay host** |
+| actor-native assembly | aggregate, projection, saga, relay and effect roles have explicit typed actor ownership and supervision | aggregate Entity composition is proven; other roles have separate primitives | **add adapter composition root:** statically install every role; direct execution is secondary |
+| projection actor | one sequential actor turn per partition, bounded intake, concurrent partitions, restart from durable checkpoint | Mnesis projection/subscription/snapshot primitives; Bombay execution/supervision | **add adapter actor host:** typed partition definition and receipt boundary |
 | checkpoint storage | checkpoint survives restart atomically with relay state | Mnesis `SnapshotStore<S, P>` can store state+position | **use existing** for relay state |
 | consumer receipt | enqueue, fold, effect, and inbox commit are different facts | Bombay send acknowledges publication only | **add adapter protocol:** typed receipt level |
 | consumer dedup | duplicate relay delivery cannot repeat protected effect | no general consumer inbox | **application storage or propose Nexus optional inbox capability** |
@@ -101,8 +110,8 @@ end-to-end policy is complete. **add** is required production work.
 | snapshots | optimization failure never changes correctness | Mnesis snapshot decorator is best effort | **configure application**, expose hit/stale/failure metrics |
 | schema evolution | old events remain decodable or explicitly upcast | schema version/envelope support exists; policy app-owned | **application:** versioned codecs/upcasters and replay test corpus |
 | multi-aggregate work | no implied transaction across streams | Mnesis has `AtomicAppend` capability for supported stores | **application service:** require capability explicitly or use saga |
-| sagas/process managers | durable state and intents resume after crash | Mnesis saga/projected-intent primitives exist; runner consumer-owned | **add separate host**, not command executor magic |
-| external effects | no dual-write claim | committed-log relay available | **relay/outbox consumer** with named inbox/effect boundary |
+| sagas/process managers | durable state and intents resume after crash; one serialized actor turn per saga identity | Mnesis saga/projected-intent primitives and Entity lifecycle exist; composition absent | **add adapter Entity host**, not command-executor magic |
+| external effects | no dual-write claim; delivery has bounded supervised ownership | committed-log relay and Bombay actor primitives available | **add effect-delivery actors** with named durable inbox/effect boundary |
 | local discovery | address resolves exact incarnation and retirement | Bombay Address/Observe integration | **use existing** |
 | cluster placement | one active owner or safe concurrent writers | absent; optimistic concurrency only catches conflicting append | **new future distributed adapter/runtime**, not local v1 |
 | membership/rebalance | moves ownership without loss or split brain | absent | **future distributed project** |
