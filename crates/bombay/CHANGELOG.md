@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Re-export runtime-independent Mnesis command execution for direct use and
+  the aggregate Entity host.
+
 ## [0.2.0](https://github.com/devrandom-labs/mnesis-bombay/compare/mnesis-bombay-v0.1.0...mnesis-bombay-v0.2.0) - 2026-08-14
 
 ### Added
