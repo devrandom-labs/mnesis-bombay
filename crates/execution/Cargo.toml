@@ -10,7 +10,7 @@ description = "Runtime-independent Mnesis command execution with factual outcome
 
 [dependencies]
 mnesis.workspace = true
-mnesis-bombay-core = { version = "0.2.0", path = "../core" }
+mnesis-bombay-core = { version = "0.2.1", path = "../core" }
 mnesis-store.workspace = true
 
 [dev-dependencies]

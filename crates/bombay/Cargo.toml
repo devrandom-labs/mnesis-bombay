@@ -13,7 +13,7 @@ behavior.workspace = true
 bombay.workspace = true
 bombay-entity.workspace = true
 mnesis.workspace = true
-mnesis-bombay-core = { version = "0.2.0", path = "../core" }
+mnesis-bombay-core = { version = "0.2.1", path = "../core" }
 mnesis-bombay-execution.workspace = true
 mnesis-store.workspace = true
 

@@ -439,7 +439,7 @@ dependencies = [
 
 [[package]]
 name = "mnesis-bombay"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "bombay-behavior",
  "bombay-entity",
@@ -452,7 +452,7 @@ dependencies = [
 
 [[package]]
 name = "mnesis-bombay-core"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "mnesis",
  "trybuild",
@@ -460,7 +460,7 @@ dependencies = [
 
 [[package]]
 name = "mnesis-bombay-execution"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "bytes",
  "mnesis",
@@ -474,7 +474,7 @@ dependencies = [
 
 [[package]]
 name = "mnesis-bombay-tower"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "mnesis-bombay-core",
  "tower-service",
@@ -482,7 +482,7 @@ dependencies = [
 
 [[package]]
 name = "mnesis-bombay-workspace"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "bombay-behavior",
  "bombay-entity",
