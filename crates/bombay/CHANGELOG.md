@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1](https://github.com/devrandom-labs/mnesis-bombay/compare/mnesis-bombay-v0.2.0...mnesis-bombay-v0.2.1) - 2026-08-14
+
+### Added
+
+- compose Mnesis command execution ([#4](https://github.com/devrandom-labs/mnesis-bombay/pull/4)) ([#25](https://github.com/devrandom-labs/mnesis-bombay/pull/25))
+
 ### Added
 
 - Re-export runtime-independent Mnesis command execution for direct use and
