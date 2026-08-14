@@ -8,5 +8,11 @@ authors.workspace = true
 repository.workspace = true
 description = "Runtime-neutral application protocol for Mnesis integrations"
 
+[dependencies]
+mnesis.workspace = true
+
+[dev-dependencies]
+trybuild.workspace = true
+
 [lints]
 workspace = true

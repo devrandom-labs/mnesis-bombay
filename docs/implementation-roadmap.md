@@ -8,9 +8,11 @@ forward by hiding an unresolved earlier guarantee in an adapter.
 Repository: `mnesis-bombay`
 
 - Replace placeholder request/outcome types with the protocol described in the
-  production-readiness audit.
-- Add identity newtypes and compile-fail tests for aggregate/actor/command/
-  position confusion.
+  production-readiness audit, preserving Mnesis `A::Id` and
+  `A: Handle<C, N>` rather than duplicating either contract.
+- Keep direct `Addressed<A::Id, _>`, Entity `EntityId<A::Id>`, activation,
+  actor and position identities structurally distinct; add compile-fail tests
+  without imposing integration-owned application ID representations.
 - Write independent state models for activation, per-key queues, commit phases,
   shutdown and relay checkpointing.
 - Build fault-injecting repository, clock, router, receipt and checkpoint

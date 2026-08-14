@@ -1,0 +1,24 @@
+error[E0308]: arguments to this function are incorrect
+  --> tests/ui/swapped_identity_roles.rs:10:20
+   |
+10 |     requires_roles(CommandIdentity::new(
+   |                    ^^^^^^^^^^^^^^^^^^^^
+11 |         CorrelationId(1),
+   |         ---------------- expected `CommandId`, found `CorrelationId`
+12 |         CausationId(2),
+13 |         CommandId(3),
+   |         ------------ expected `CorrelationId`, found `CommandId`
+   |
+note: associated function defined here
+  --> src/command.rs
+   |
+   |     pub const fn new(
+   |                  ^^^
+help: swap these arguments
+   |
+10 ~     requires_roles(CommandIdentity::new(
+11 +         CommandId(3),
+12 +         CausationId(2),
+13 +         CorrelationId(1),
+14 ~     ));
+   |
