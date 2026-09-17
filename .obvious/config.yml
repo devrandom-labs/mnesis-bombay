@@ -1,0 +1,7 @@
+# Repo policy for obvious workers — auto-detected from GitHub settings 2026-09-17.
+defaultBranch: main
+# GitHub allows merge-commit, squash, and rebase; squash chosen to preserve
+# the repo's focused-conventional-commit history (AGENTS.md).
+mergeMethod: squash
+deleteBranchOnMerge: true   # matches repo setting
+requireHumanMerge: true     # setup/PR merges need a human click
