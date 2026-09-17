@@ -1,3 +1,10 @@
+[advisories]
+# Check for known vulnerabilities in the lockfile (`cargo deny check advisories`).
+# All advisories are blocking; no global ignores. Weekly CI runs (deny.yml) keep
+# this current even when the tree is quiet.
+version = 2
+ignore = []
+
 [licenses]
 allow = [
     "MIT",
